@@ -1,0 +1,901 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  phone           String?   @unique
+  emailVerified   DateTime?
+  hashedPassword  String?
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  profile         StudentProfile?
+  diagnosticResults DiagnosticResult[]
+  testSessions    TestSession[]
+  studyPlans      StudyPlan[]
+  studyStreak     StudyStreak?
+   achievements     UserAchievement[]
+  xp               UserXP?
+  xpTransactions   XPTransaction[]
+  dailyMissions    DailyMission[]
+  leaderboardEntries LeaderboardEntry[]
+   subscription     Subscription?
+  payments         Payment[]
+  flaggedQuestions  FlaggedQuestion[]
+  microInteractions MicroInteraction[]
+  realityChecks    RealityCheck[]
+   referralsMade       Referral[]   @relation("referralsMade")
+  referredBy          Referral?    @relation("referredBy")
+  referralCode        ReferralCode?
+  challengeAttempts   DailyChallengeAttempt[]
+  whatsappSession  WhatsAppSession[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  firstName       String
+  lastName        String
+  displayName     String?
+  dateOfBirth     DateTime?
+  gender          Gender?
+  state           String?            // Nigerian state
+  city            String?
+  schoolName      String?
+  schoolType      SchoolType?
+  classLevel      ClassLevel?
+
+  // JAMB-specific
+  examYear        Int
+  targetScore     Int                // e.g. 250, 300, 350
+  jambSubjects    JambSubjectChoice[]
+  preferredCourse String?            // desired university course
+  preferredUni    String?            // first-choice university
+
+  // Learning preferences (feeds ML models)
+  studyHoursPerDay   Float?          // how many hours they can commit
+  preferredTimeSlot  TimeSlot?
+  learningStyle      LearningStyle?
+  previousJambScore  Int?            // if they've written before
+  mockTestsCompleted Int             @default(0)
+
+  // ML feature columns
+  onboardingCompletedAt DateTime?
+  diagnosticCompletedAt DateTime?
+  riskLevel             RiskLevel?   // computed after diagnostic
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JambSubjectChoice {
+  id        String @id @default(cuid())
+  profileId String
+  subject   JambSubject
+  priority  Int                      // 1-4 (Use of English is always 1)
+
+  profile StudentProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, subject])
+}
+
+model DiagnosticResult {
+  id              String   @id @default(cuid())
+  userId          String
+  subject         JambSubject
+  totalQuestions  Int
+  correctAnswers  Int
+  averageTimeMs   Int               // avg milliseconds per question
+  topicBreakdown  Json              // { topicId: { correct, total, avgTime } }
+  weakTopics      String[]          // topic IDs flagged as weak
+  strongTopics    String[]
+  carelessErrors  Int               // correct concept but wrong answer
+  predictedScore  Float?            // ML-predicted JAMB score for subject
+  rawResponses    Json              // full response data for retraining
+  completedAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, subject])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum SchoolType {
+  PUBLIC
+  PRIVATE
+  FEDERAL_GOVERNMENT
+  STATE_GOVERNMENT
+  INTERNATIONAL
+  HOME_SCHOOL
+}
+
+enum ClassLevel {
+  SS1
+  SS2
+  SS3
+  GRADUATE
+  GAP_YEAR
+}
+
+enum TimeSlot {
+  EARLY_MORNING    // 5am - 8am
+  MORNING          // 8am - 12pm
+  AFTERNOON        // 12pm - 4pm
+  EVENING          // 4pm - 8pm
+  NIGHT            // 8pm - 12am
+  LATE_NIGHT       // 12am - 5am
+}
+
+enum LearningStyle {
+  VISUAL
+  READING
+  PRACTICE
+  MIXED
+}
+
+enum RiskLevel {
+  HIGH             // likely below 200
+  MEDIUM           // 200-250 range
+  LOW              // 250+ likely
+  VERY_LOW         // 300+ likely
+}
+
+enum JambSubject {
+  USE_OF_ENGLISH
+  MATHEMATICS
+  PHYSICS
+  CHEMISTRY
+  BIOLOGY
+  LITERATURE
+  GOVERNMENT
+  ECONOMICS
+  COMMERCE
+  ACCOUNTING
+  CRS
+  IRS
+  GEOGRAPHY
+  AGRICULTURAL_SCIENCE
+  HISTORY
+  CIVIC_EDUCATION
+  COMPUTER_STUDIES
+  FINE_ARTS
+  MUSIC
+  ARABIC
+  FRENCH
+  HAUSA
+  IGBO
+  YORUBA
+}
+// ── Question Bank Models ──
+
+model Topic {
+  id          String      @id @default(cuid())
+  subject     JambSubject
+  name        String                // e.g. "Comprehension", "Quadratic Equations"
+  slug        String      @unique
+  description String?
+  weight      Float       @default(1.0)  // how often this appears in real JAMB
+  sortOrder   Int         @default(0)
+
+  questions   Question[]
+  subtopics   Subtopic[]
+  studyPlans      StudyPlan[]
+  microContent    MicroContent[]
+  dailyChallenges     DailyChallenge[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([subject])
+}
+
+model Subtopic {
+  id        String   @id @default(cuid())
+  topicId   String
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0)
+
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([topicId])
+}
+
+model Question {
+  id              String         @id @default(cuid())
+  subject         JambSubject
+  topicId         String
+  subtopicId      String?
+  year            Int?                    // JAMB year if from past paper
+  questionNumber  Int?                    // original question number
+
+  body            String         @db.Text // the question text (supports markdown)
+  imageUrl        String?                 // optional diagram/figure
+  optionA         String
+  optionB         String
+  optionC         String
+  optionD         String
+  correctOption   CorrectOption           // A, B, C, or D
+  explanation     String?        @db.Text // AI-generated or human explanation
+  difficulty      Difficulty     @default(MEDIUM)
+  isActive        Boolean        @default(true)
+
+  // ML feature columns
+  avgTimeMs       Int?                    // average time students take
+  correctRate     Float?                  // % of students who get it right
+  discriminationIndex Float?              // how well it separates strong/weak students
+  totalAttempts   Int            @default(0)
+
+  topic           Topic          @relation(fields: [topicId], references: [id])
+  subtopic        Subtopic?      @relation(fields: [subtopicId], references: [id])
+  responses       QuestionResponse[]
+   flags            FlaggedQuestion[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([subject, topicId])
+  @@index([subject, difficulty])
+  @@index([year, subject])
+}
+
+model TestSession {
+  id              String          @id @default(cuid())
+  userId          String
+  mode            TestMode
+  subject         JambSubject?             // null for full mock
+  subjects        JambSubject[]            // for full mock (4 subjects)
+  totalQuestions  Int
+  timeLimit       Int                      // seconds
+  status          TestStatus      @default(IN_PROGRESS)
+
+  // Results (populated on submit)
+  score           Int?
+  totalCorrect    Int?
+  totalWrong      Int?
+  totalSkipped    Int?
+  timeTaken       Int?                     // actual seconds used
+  percentile      Float?                   // vs other students
+
+  // ML metadata
+  difficultyProfile Json?                  // { easy: n, medium: n, hard: n }
+  topicAccuracy     Json?                  // { topicId: { correct, total } }
+  timeDistribution  Json?                  // { questionId: ms }
+  flaggedQuestions  String[]               // question IDs student flagged
+
+  startedAt       DateTime        @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses       QuestionResponse[]
+
+  @@index([userId, status])
+  @@index([userId, mode])
+}
+
+model QuestionResponse {
+  id            String        @id @default(cuid())
+  sessionId     String
+  questionId    String
+  userId        String
+
+  selectedOption CorrectOption?           // null if skipped
+  isCorrect     Boolean?
+  timeSpent     Int                       // milliseconds on this question
+  isFlagged     Boolean       @default(false)
+  confidence    Int?                      // 1-5 self-rated confidence (future feature)
+
+  answeredAt    DateTime      @default(now())
+
+  session       TestSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question      Question      @relation(fields: [questionId], references: [id])
+
+  @@unique([sessionId, questionId])
+  @@index([userId, questionId])
+}
+
+enum CorrectOption {
+  A
+  B
+  C
+  D
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum TestMode {
+  PRACTICE         // untimed, single subject
+  TIMED            // timed, single subject
+  MOCK_EXAM        // full JAMB simulation (4 subjects)
+  TOPIC_DRILL      // specific topic focus
+  WEAK_TOPIC       // AI-selected weak areas
+  DIAGNOSTIC       // initial assessment
+}
+
+enum TestStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+  TIMED_OUT
+}
+
+model StudyPlan {
+  id            String       @id @default(cuid())
+  userId        String
+  date          DateTime     @db.Date
+  subject       JambSubject
+  topicId       String
+  taskType      StudyTaskType
+  title         String
+  description   String?
+  questionCount Int          @default(10)
+  difficulty    Difficulty   @default(MEDIUM)
+  priority      Int          @default(0)     // higher = more important
+  status        StudyStatus  @default(PENDING)
+  completedAt   DateTime?
+
+  // Spaced repetition fields
+  repetitionNumber Int       @default(0)
+  easeFactor       Float     @default(2.5)
+  intervalDays     Int       @default(1)
+  nextReviewDate   DateTime?
+
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic         Topic        @relation(fields: [topicId], references: [id])
+
+  createdAt     DateTime     @default(now())
+
+  @@index([userId, date])
+  @@index([userId, status])
+  @@index([userId, nextReviewDate])
+}
+
+model StudyStreak {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  currentStreak Int    @default(0)
+  longestStreak Int    @default(0)
+  lastStudyDate DateTime?
+  totalStudyDays Int   @default(0)
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum StudyTaskType {
+  WEAK_TOPIC_DRILL
+  REVIEW
+  SPACED_REPETITION
+  NEW_TOPIC
+  MOCK_PREP
+  SPEED_DRILL
+}
+
+enum StudyStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique        // e.g. "first_test", "streak_7"
+  title       String
+  description String
+  icon        String                  // emoji or icon name
+  category    AchievementCategory
+  requirement Int                     // threshold value
+  xpReward    Int      @default(0)
+
+  unlocks     UserAchievement[]
+
+  @@index([category])
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+  seen          Boolean     @default(false)
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model UserXP {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  totalXP     Int      @default(0)
+  level       Int      @default(1)
+  weeklyXP    Int      @default(0)
+  monthlyXP   Int      @default(0)
+  lastResetAt DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model XPTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  amount    Int
+  source    XPSource
+  sourceId  String?           // test session ID, study plan ID, etc.
+  note      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model DailyMission {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime @db.Date
+  missionType MissionType
+  title       String
+  description String
+  target      Int                   // e.g. 20 questions, 1 test
+  progress    Int      @default(0)
+  xpReward    Int      @default(0)
+  status      MissionStatus @default(ACTIVE)
+  completedAt DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@unique([userId, date, missionType])
+}
+
+model LeaderboardEntry {
+  id        String          @id @default(cuid())
+  userId    String
+  period    LeaderboardPeriod
+  periodKey String                   // e.g. "2026-W22", "2026-01"
+  score     Int             @default(0)
+  rank      Int?
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, periodKey])
+  @@index([period, periodKey, score])
+}
+
+enum AchievementCategory {
+  MILESTONE
+  STREAK
+  ACCURACY
+  SPEED
+  SOCIAL
+  MASTERY
+}
+
+enum XPSource {
+  TEST_COMPLETE
+  QUESTION_CORRECT
+  STREAK_BONUS
+  DAILY_MISSION
+  ACHIEVEMENT
+  STUDY_PLAN
+  FIRST_LOGIN
+}
+
+enum MissionType {
+  ANSWER_QUESTIONS
+  COMPLETE_TEST
+  STUDY_MINUTES
+  PERFECT_TOPIC
+  USE_TUTOR
+  REVIEW_WEAK
+}
+
+enum MissionStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum LeaderboardPeriod {
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+model Subscription {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  plan            SubscriptionPlan @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  paystackCustomerId String?
+  paystackSubscriptionCode String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelledAt     DateTime?
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  subscriptionId  String?
+  amount          Int                        // in kobo (₦1 = 100 kobo)
+  currency        String        @default("NGN")
+  status          PaymentStatus @default(PENDING)
+  provider        String        @default("paystack")
+  providerRef     String?       @unique      // paystack reference
+  providerTxId    String?                    // paystack transaction ID
+  plan            SubscriptionPlan?
+  metadata        Json?
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  createdAt       DateTime      @default(now())
+
+  @@index([userId])
+  @@index([providerRef])
+}
+
+model FlaggedQuestion {
+  id          String     @id @default(cuid())
+  questionId  String
+  userId      String
+  reason      FlagReason
+  description String?
+  status      FlagStatus @default(OPEN)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  resolution  String?
+
+  question    Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime   @default(now())
+
+  @@index([status])
+  @@index([questionId])
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER         // ₦1,500/month
+  PRO             // ₦3,000/month
+  ELITE           // ₦5,000/month
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum FlagReason {
+  WRONG_ANSWER
+  UNCLEAR_QUESTION
+  DUPLICATE
+  OUTDATED
+  TYPO
+  OTHER
+}
+
+enum FlagStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+model MicroContent {
+  id          String           @id @default(cuid())
+  type        MicroContentType
+  subject     JambSubject
+  topicId     String?
+  title       String
+  body        String           @db.Text
+  imageUrl    String?
+  tags        String[]
+  difficulty  Difficulty       @default(MEDIUM)
+  isActive    Boolean          @default(true)
+  sortOrder   Int              @default(0)
+
+  // Engagement stats
+  views       Int              @default(0)
+  likes       Int              @default(0)
+  saves       Int              @default(0)
+
+  topic       Topic?           @relation(fields: [topicId], references: [id])
+  interactions MicroInteraction[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([subject, isActive])
+  @@index([type, isActive])
+}
+
+model MicroInteraction {
+  id          String   @id @default(cuid())
+  userId      String
+  contentId   String
+  liked       Boolean  @default(false)
+  saved       Boolean  @default(false)
+  viewed      Boolean  @default(true)
+  viewDuration Int     @default(0)         // seconds spent on card
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     MicroContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, contentId])
+  @@index([userId])
+}
+
+enum MicroContentType {
+  TRICK           // quick math/science trick
+  MNEMONIC        // memory device
+  TRAP            // common JAMB trap question pattern
+  FLASHCARD       // term + definition
+  HACK            // exam strategy tip
+  FACT            // "did you know" engaging fact
+  FORMULA         // key formula with visual
+  MISTAKE         // "most students get this wrong"
+}
+
+model University {
+  id              String   @id @default(cuid())
+  name            String
+  shortName       String   @unique        // e.g. "UNILAG"
+  state           String
+  type            UniType
+  isActive        Boolean  @default(true)
+
+  courses         Course[]
+
+  @@index([state])
+}
+
+model Course {
+  id              String   @id @default(cuid())
+  universityId    String
+  name            String
+  faculty         String?
+  jambCutoff      Int                      // minimum JAMB score
+  departmentalCutoff Int?                  // post-UTME cutoff if known
+  requiredSubjects JambSubject[]           // subjects needed
+  competitiveness Competitiveness @default(MODERATE)
+  acceptanceRate  Float?                   // estimated %
+  totalSlots      Int?                     // estimated yearly intake
+  isActive        Boolean  @default(true)
+
+  university      University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  realityChecks   RealityCheck[]
+
+  @@unique([universityId, name])
+  @@index([universityId])
+  @@index([jambCutoff])
+}
+
+model RealityCheck {
+  id                String   @id @default(cuid())
+  userId            String
+  courseId           String
+  predictedScore    Int
+  targetScore       Int
+  probability       Float              // 0-100%
+  gap               Int                // points needed
+  roadmap           Json?              // generated study roadmap
+  subjectBreakdown  Json?              // per-subject analysis
+  generatedAt       DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course            Course   @relation(fields: [courseId], references: [id])
+
+  @@index([userId])
+  @@index([userId, courseId])
+}
+
+enum UniType {
+  FEDERAL
+  STATE
+  PRIVATE
+}
+
+enum Competitiveness {
+  LOW
+  MODERATE
+  HIGH
+  VERY_HIGH
+  EXTREME
+}
+
+
+model Referral {
+  id              String        @id @default(cuid())
+  referrerId      String
+  referredId      String        @unique
+  referralCode    String
+  status          ReferralStatus @default(PENDING)
+  rewardClaimed   Boolean       @default(false)
+  completedAt     DateTime?
+
+  referrer        User          @relation("referralsMade", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred        User          @relation("referredBy", fields: [referredId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime      @default(now())
+
+  @@index([referrerId])
+  @@index([referralCode])
+}
+
+model ReferralCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  code      String   @unique
+  uses      Int      @default(0)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([code])
+}
+
+model DailyChallenge {
+  id              String   @id @default(cuid())
+  date            DateTime @unique @db.Date
+  subject         JambSubject
+  topicId         String?
+  title           String
+  description     String
+  questionIds     String[]            // 5-10 curated question IDs
+  difficulty      Difficulty @default(MEDIUM)
+  timeLimit       Int      @default(300)  // seconds
+  xpReward        Int      @default(50)
+  bonusXP         Int      @default(25)   // for top 10%
+
+  topic           Topic?   @relation(fields: [topicId], references: [id])
+  attempts        DailyChallengeAttempt[]
+
+  createdAt       DateTime @default(now())
+}
+
+model DailyChallengeAttempt {
+  id              String   @id @default(cuid())
+  userId          String
+  challengeId     String
+  score           Int                     // correct count
+  totalQuestions  Int
+  timeTaken       Int                     // seconds
+  accuracy        Float
+  rank            Int?
+  xpEarned        Int      @default(0)
+  responses       Json                    // { questionId: selectedOption }
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge       DailyChallenge @relation(fields: [challengeId], references: [id])
+
+  completedAt     DateTime @default(now())
+
+  @@unique([userId, challengeId])
+  @@index([challengeId, accuracy])
+}
+
+enum ReferralStatus {
+  PENDING
+  COMPLETED        // referred user completed onboarding
+  REWARDED          // referrer got their reward
+}
+
+
+
+model WhatsAppSession {
+  id            String   @id @default(cuid())
+  phone         String   @unique
+  userId        String?
+  state         WAState  @default(IDLE)
+  context       Json?                  // current quiz state, pending question, etc.
+  lastMessageAt DateTime @default(now())
+
+  user          User?    @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([phone])
+  @@index([userId])
+}
+
+enum WAState {
+  IDLE
+  ONBOARDING_NAME
+  ONBOARDING_SUBJECTS
+  QUIZ_ACTIVE
+  WAITING_ANSWER
+  ASKING_AI
+}

@@ -1,0 +1,53 @@
+export const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa",
+  "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo",
+  "Ekiti", "Enugu", "FCT Abuja", "Gombe", "Imo", "Jigawa",
+  "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara",
+  "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun",
+  "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
+] as const;
+
+export const JAMB_SUBJECTS = [
+  { value: "USE_OF_ENGLISH", label: "Use of English", category: "core" },
+  { value: "MATHEMATICS", label: "Mathematics", category: "science" },
+  
+  { value: "PHYSICS", label: "Physics", category: "science" },
+  { value: "CHEMISTRY", label: "Chemistry", category: "science" },
+  { value: "BIOLOGY", label: "Biology", category: "science" },
+  { value: "LITERATURE", label: "Literature in English", category: "arts" },
+  { value: "GOVERNMENT", label: "Government", category: "social_science" },
+  { value: "ECONOMICS", label: "Economics", category: "social_science" },
+  { value: "COMMERCE", label: "Commerce", category: "social_science" },
+  { value: "ACCOUNTING", label: "Accounting", category: "social_science" },
+  { value: "CRS", label: "Christian Religious Studies", category: "arts" },
+  { value: "IRS", label: "Islamic Religious Studies", category: "arts" },
+  { value: "GEOGRAPHY", label: "Geography", category: "social_science" },
+  { value: "AGRICULTURAL_SCIENCE", label: "Agricultural Science", category: "science" },
+  { value: "HISTORY", label: "History", category: "arts" },
+  { value: "CIVIC_EDUCATION", label: "Civic Education", category: "social_science" },
+  { value: "COMPUTER_STUDIES", label: "Computer Studies", category: "science" },
+  { value: "FINE_ARTS", label: "Fine Arts", category: "arts" },
+  { value: "MUSIC", label: "Music", category: "arts" },
+  { value: "ARABIC", label: "Arabic", category: "languages" },
+  { value: "FRENCH", label: "French", category: "languages" },
+  { value: "HAUSA", label: "Hausa", category: "languages" },
+  { value: "IGBO", label: "Igbo", category: "languages" },
+  { value: "YORUBA", label: "Yoruba", category: "languages" },
+] as const;
+
+export const POPULAR_UNIVERSITIES = [
+  "University of Lagos (UNILAG)",
+  "University of Ibadan (UI)",
+  "Obafemi Awolowo University (OAU)",
+  "University of Nigeria, Nsukka (UNN)",
+  "Ahmadu Bello University (ABU)",
+  "University of Benin (UNIBEN)",
+  "University of Ilorin (UNILORIN)",
+  "Federal University of Technology, Akure (FUTA)",
+  "University of Port Harcourt (UNIPORT)",
+  "Lagos State University (LASU)",
+  "Covenant University",
+  "Babcock University",
+  "Nile University of Nigeria",
+  "Other",
+] as const;
