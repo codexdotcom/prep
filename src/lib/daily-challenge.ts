@@ -1,10 +1,18 @@
 import { db } from "./db";
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export async function getOrCreateTodaysChallenge() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Check if today's challenge exists
   const existing = await db.dailyChallenge.findUnique({
     where: { date: today },
     include: { topic: { select: { name: true } } },
@@ -12,8 +20,6 @@ export async function getOrCreateTodaysChallenge() {
 
   if (existing) return existing;
 
-  // Generate a new challenge
-  // Rotate subjects daily
   const dayOfYear = Math.floor(
     (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
   );
@@ -24,7 +30,6 @@ export async function getOrCreateTodaysChallenge() {
   ];
   const todaysSubject = subjects[dayOfYear % subjects.length];
 
-  // Get a random topic for this subject
   const topics = await db.topic.findMany({
     where: { subject: todaysSubject as any },
   });
@@ -33,7 +38,6 @@ export async function getOrCreateTodaysChallenge() {
     ? topics[Math.floor(Math.random() * topics.length)]
     : null;
 
-  // Pick 7 questions with mixed difficulty
   const whereClause: any = {
     subject: todaysSubject,
     isActive: true,
@@ -58,25 +62,15 @@ export async function getOrCreateTodaysChallenge() {
     }),
   ]);
 
-  const shuffle = <T>(arr: T[]): T[] => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
+  const combined: Array<{ id: string }> = [
+    ...shuffle<{ id: string }>(easyQs).slice(0, 2),
+    ...shuffle<{ id: string }>(medQs).slice(0, 3),
+    ...shuffle<{ id: string }>(hardQs).slice(0, 2),
+  ];
 
-  const selectedIds = [
-    ...shuffle(easyQs).slice(0, 2),
-    ...shuffle(medQs).slice(0, 3),
-    ...shuffle(hardQs).slice(0, 2),
-  ].map((q) => q.id);
-
-  const finalIds = shuffle(selectedIds);
+  const finalIds: string[] = shuffle(combined.map((q) => q.id));
 
   if (finalIds.length === 0) {
-    // Fallback: get any questions for this subject
     const fallback = await db.question.findMany({
       where: { subject: todaysSubject as any, isActive: true },
       select: { id: true },

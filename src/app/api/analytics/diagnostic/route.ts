@@ -155,7 +155,7 @@ export async function GET() {
       },
     });
 
-    const selectedSubjects = profile?.jambSubjects.map((s) => s.subject) || [];
+   const selectedSubjects = profile?.jambSubjects.map((s: { subject: string }) => s.subject) || [];
     let predictedTotal = 0;
     let subjectsScored = 0;
 
@@ -175,12 +175,12 @@ export async function GET() {
         : 0;
 
     // Speed analysis
-    const allTimes = responses
-      .filter((r) => r.selectedOption !== null)
-      .map((r) => r.timeSpent);
+  const allTimes = responses
+  .filter((r: any) => r.selectedOption !== null)
+  .map((r: any) => r.timeSpent);
     const avgTimePerQuestion =
       allTimes.length > 0
-        ? Math.round(allTimes.reduce((a, b) => a + b, 0) / allTimes.length)
+     ? Math.round(allTimes.reduce((a: number, b: number) => a + b, 0) / allTimes.length)
         : 0;
 
     const idealTimeMs = 72000;

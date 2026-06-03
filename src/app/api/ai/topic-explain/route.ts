@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const mistakeContext = responses.length > 0
       ? `\n\nThe student has gotten these questions wrong recently:\n${responses
-          .map((r, i) => `${i + 1}. "${r.question.body}" (correct: ${r.question.correctOption})`)
+          .map((r: { question: { body: string; correctOption: string } }, i: number) => `${i + 1}. "${r.question.body}" (correct: ${r.question.correctOption})`)
           .join("\n")}`
       : "";
 

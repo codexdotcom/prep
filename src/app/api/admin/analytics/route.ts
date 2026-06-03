@@ -97,10 +97,9 @@ export async function GET() {
     const revenueNaira = (revenueData._sum.amount || 0) / 100;
 
     const planBreakdown: Record<string, number> = {};
-    subscriptionCounts.forEach((s) => {
-      planBreakdown[s.plan] = s._count;
-    });
-
+  subscriptionCounts.forEach((s: { plan: string; _count: number }) => {
+  planBreakdown[s.plan] = s._count;
+});
     return NextResponse.json({
       overview: {
         totalUsers,

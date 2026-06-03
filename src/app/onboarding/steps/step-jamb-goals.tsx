@@ -60,11 +60,11 @@ export function StepJambGoals({ defaultValues, onComplete, onBack }: Props) {
   };
 
   // Group subjects by category
-  const grouped = JAMB_SUBJECTS.reduce((acc, sub) => {
-    if (!acc[sub.category]) acc[sub.category] = [];
-    acc[sub.category].push(sub);
-    return acc;
-  }, {} as Record<string, typeof JAMB_SUBJECTS>);
+const grouped = JAMB_SUBJECTS.reduce((acc, sub) => {
+  if (!acc[sub.category]) acc[sub.category] = [];
+  acc[sub.category].push(sub);
+  return acc;
+}, {} as Record<string, Array<(typeof JAMB_SUBJECTS)[number]>>);
 
   const categoryLabels: Record<string, string> = {
     science: "Sciences",
@@ -156,7 +156,7 @@ export function StepJambGoals({ defaultValues, onComplete, onBack }: Props) {
                 {categoryLabels[category] || category}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(subjects as typeof JAMB_SUBJECTS).map((subject) => {
+                {subjects.map((subject) => {
                   const isSelected = selectedSubjects.includes(subject.value);
                   const isDisabled =
                     !isSelected && selectedSubjects.length >= 3;

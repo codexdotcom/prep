@@ -36,8 +36,9 @@ export async function GET() {
     });
 
     // Sort by the challenge order
-    const orderMap = new Map(challenge.questionIds.map((id, i) => [id, i]));
-    questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+
+const orderMap = new Map<string, number>(challenge.questionIds.map((id, i) => [id, i]));
+questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
 
     // Get leaderboard for today
     const leaderboard = await db.dailyChallengeAttempt.findMany({

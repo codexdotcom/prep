@@ -36,8 +36,8 @@ export async function GET(req: Request) {
     });
 
     const statusCounts: Record<string, number> = {};
-    counts.forEach((c) => { statusCounts[c.status] = c._count; });
-
+    
+counts.forEach((c: { status: string; _count: number }) => { statusCounts[c.status] = c._count; });
     return NextResponse.json({ flags, statusCounts });
   } catch (error) {
     console.error("Flags error:", error);

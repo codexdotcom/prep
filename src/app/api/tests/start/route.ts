@@ -12,6 +12,15 @@ const startTestSchema = z.object({
   timeLimit: z.number().min(60).max(7200).optional(),
 });
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await auth();
@@ -25,9 +34,9 @@ export async function POST(req: Request) {
     // Determine time limit based on mode
     let timeLimit = validated.timeLimit ?? 0;
     if (validated.mode === "MOCK_EXAM") {
-      timeLimit = 7200; // 2 hours for full mock
+      timeLimit = 7200;
     } else if (validated.mode === "TIMED" && !validated.timeLimit) {
-      timeLimit = validated.questionCount * 60; // ~1 min per question
+      timeLimit = validated.questionCount * 60;
     }
 
     // Build question query
@@ -47,11 +56,11 @@ export async function POST(req: Request) {
     const mediumCount = Math.round(totalNeeded * 0.5);
     const hardCount = totalNeeded - easyCount - mediumCount;
 
-    const [easyQs, mediumQs, hardQs] = await Promise.all([
+    const [easyQs, mediumQs, hardQs]: { id: string }[][] = await Promise.all([
       db.question.findMany({
         where: { ...whereClause, difficulty: "EASY" },
         select: { id: true },
-        take: easyCount * 3, // over-fetch for randomization
+        take: easyCount * 3,
       }),
       db.question.findMany({
         where: { ...whereClause, difficulty: "MEDIUM" },
@@ -64,16 +73,6 @@ export async function POST(req: Request) {
         take: hardCount * 3,
       }),
     ]);
-
-    // Shuffle and pick
-    const shuffle = <T>(arr: T[]): T[] => {
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    };
 
     const selectedIds = [
       ...shuffle(easyQs).slice(0, easyCount),

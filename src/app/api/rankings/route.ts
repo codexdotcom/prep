@@ -80,15 +80,17 @@ export async function GET(req: Request) {
         _count: true,
       });
 
-      const correctMap = new Map(
-        correctCounts.map((c) => [c.userId, c._count])
+
+      const correctMap = new Map<string, number>(
+        correctCounts.map((c) => [c.userId, Number(c._count)])
       );
 
       const subjectRanking = subjectScores
-        .filter((s) => s._count >= 10) // minimum 10 questions
+        .filter((s) => Number(s._count) >= 10)
         .map((s) => {
-          const correct = correctMap.get(s.userId) || 0;
-          const accuracy = Math.round((correct / s._count) * 100);
+          const correct = correctMap.get(s.userId) ?? 0;
+          const total = Number(s._count);
+          const accuracy = Math.round((correct / total) * 100);
           const user = allUsers.find((u) => u.userId === s.userId);
 
           return {
@@ -99,12 +101,13 @@ export async function GET(req: Request) {
                 : user?.user.name || "Student",
             image: user?.user.image || null,
             score: accuracy,
-            questionsAnswered: s._count,
+            questionsAnswered: total,
             state: user?.user.profile?.state || null,
             school: user?.user.profile?.schoolName || null,
           };
         })
         .sort((a, b) => b.score - a.score);
+
 
       // Find current user's rank
       const myRank =
