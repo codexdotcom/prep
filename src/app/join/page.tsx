@@ -1,17 +1,16 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import { Zap, Gift } from "lucide-react";
+import { Zap, Gift, Loader2 } from "lucide-react";
 
-export default function JoinPage() {
+function JoinContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const ref = searchParams.get("ref");
 
   useEffect(() => {
-    // Store referral code for after signup
     if (ref) {
       localStorage.setItem("referralCode", ref);
     }
@@ -32,7 +31,7 @@ export default function JoinPage() {
         </h1>
 
         <p className="mt-3 text-sm" style={{ color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>
-          A friend thinks you should try JambOS - Nigeria&apos;s AI-powered JAMB prep platform.
+          A friend thinks you should try PrepGenius — Nigeria&apos;s AI-powered JAMB prep platform.
           Sign up and start preparing smarter.
         </p>
 
@@ -57,7 +56,7 @@ export default function JoinPage() {
           style={{ padding: "1rem", fontSize: "1rem" }}
         >
           <Zap className="h-5 w-5" />
-          Join JambOS — It&apos;s Free
+          Join PrepGenius — It&apos;s Free
         </Link>
 
         <p className="mt-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
@@ -68,5 +67,19 @@ export default function JoinPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function JoinPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--color-surface)" }}>
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-accent-green)" }} />
+        </div>
+      }
+    >
+      <JoinContent />
+    </Suspense>
   );
 }

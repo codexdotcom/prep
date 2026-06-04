@@ -1,16 +1,10 @@
 import NextAuth from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import { db } from "./db";
+import bcrypt from "bcryptjs";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/auth/login",
-  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -39,50 +33,83 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!isValid) return null;
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+        return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
     }),
   ],
-  callbacks: {
-    async signIn() {
-      return true;
-    },
-    async redirect({ url, baseUrl }) {
-      // After sign-in, always go to onboarding (it can redirect to dashboard if already complete)
-      if (url.includes("/api/auth") || url.includes("/auth/login") || url === baseUrl) {
-        return `${baseUrl}/onboarding`;
-      }
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return `${baseUrl}/onboarding`;
-    },
-    async jwt({ token, user, trigger }) {
-      if (user) {
-        token.id = user.id;
-      }
-
-      if (trigger === "signIn" || trigger === "signUp") {
-        const profile = await db.studentProfile.findUnique({
-          where: { userId: token.id as string },
-        });
-        token.hasProfile = !!profile;
-        token.onboardingComplete = !!profile?.onboardingCompletedAt;
-      }
-
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        (session as any).hasProfile = token.hasProfile;
-        (session as any).onboardingComplete = token.onboardingComplete;
-      }
-      return session;
-    },
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/auth/login",
   },
+ // In src/lib/auth.ts — update the signIn callback:
+
+callbacks: {
+  async signIn({ user, account, profile: googleProfile }) {
+    if (account?.provider === "google" && user.email) {
+      try {
+        const existing = await db.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!existing) {
+          const created = await db.user.create({
+            data: {
+              email: user.email,
+              name: user.name,
+              image: user.image,
+            },
+          });
+          // Override the user.id so JWT gets the DB ID
+          user.id = created.id;
+        } else {
+          // Ensure JWT uses the existing DB ID
+          user.id = existing.id;
+          // Update name/image if changed
+          await db.user.update({
+            where: { id: existing.id },
+            data: {
+              name: user.name || existing.name,
+              image: user.image || existing.image,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("signIn callback error:", err);
+        // Don't block login
+      }
+    }
+    return true;
+  },
+
+  async jwt({ token, user }) {
+    if (user) {
+      token.id = user.id;
+    }
+
+    if (token.id) {
+      const profile = await db.studentProfile.findUnique({
+        where: { userId: token.id as string },
+        select: { id: true },
+      });
+      token.hasProfile = !!profile;
+    }
+
+    return token;
+  },
+
+  async redirect({ url, baseUrl }) {
+    if (url.startsWith("/")) return `${baseUrl}${url}`;
+    if (url.startsWith(baseUrl)) return url;
+    return baseUrl;
+  },
+
+  async session({ session, token }) {
+    if (session.user && token.id) {
+      session.user.id = token.id as string;
+      (session as any).hasProfile = token.hasProfile;
+    }
+    return session;
+  },
+},
+    
 });

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { AnimatedBackground } from "@/components/ui/animated-bg";
 import { Logo } from "@/components/ui/logo";
 import { Stepper } from "@/components/ui/stepper";
@@ -20,8 +20,11 @@ import type {
 
 const STEPS = ["Personal", "Education", "JAMB Goals", "Study Style"];
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -71,23 +74,26 @@ export default function OnboardingPage() {
         return;
       }
 
-      router.push("/diagnostic");
+      // Apply referral code if stored
+      const refCode = localStorage.getItem("referralCode");
+      if (refCode) {
+        try {
+          await fetch("/api/referral/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: refCode }),
+          });
+          localStorage.removeItem("referralCode");
+        } catch {}
+      }
+
+      // Redirect to original destination or dashboard
+      router.push(callbackUrl);
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
-    // Add at the end of handleSubmit, after the successful API call:
-const refCode = localStorage.getItem("referralCode");
-if (refCode) {
-  fetch("/api/referral/apply", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: refCode }),
-  })
-    .then(() => localStorage.removeItem("referralCode"))
-    .catch(() => {});
-}
   };
 
   const slideVariants = {
@@ -113,7 +119,7 @@ if (refCode) {
         <div className="mb-6 text-center">
           <Logo />
           <p className="mt-2 text-sm text-white/40">
-            Let's set up your personalized prep plan
+            Let&apos;s set up your personalized prep plan
           </p>
         </div>
 
@@ -178,5 +184,19 @@ if (refCode) {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--color-surface)" }}>
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-accent-green)" }} />
+        </div>
+      }
+    >
+      <OnboardingContent />
+    </Suspense>
   );
 }

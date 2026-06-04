@@ -1,49 +1,49 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-export function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  // Skip API routes, static files, and auth callbacks entirely
+  // Skip static files, API routes, auth callbacks, webhooks
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.includes("callback") ||
-    pathname.includes("webhook")
+    pathname.includes("webhook") ||
+    pathname.startsWith("/icons")
   ) {
     return NextResponse.next();
   }
 
-  // Check for session token (both dev and prod cookie names)
-  const sessionToken =
-    req.cookies.get("authjs.session-token")?.value ||
-    req.cookies.get("next-auth.session-token")?.value ||
-    req.cookies.get("__Secure-authjs.session-token")?.value ||
-    req.cookies.get("__Secure-next-auth.session-token")?.value;
+  // Public routes — no auth required
+  const isPublic =
+    pathname === "/" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname.startsWith("/subscription/verify") ||
+    pathname.startsWith("/join") ||
+    pathname.startsWith("/auth");
 
-  const isLoggedIn = !!sessionToken;
-  const isAuthPage = pathname.startsWith("/auth");
-const isPublic = pathname === "/" ||
-  pathname === "/privacy" ||
-  pathname === "/terms" ||
-  pathname.startsWith("/subscription/verify") ||
-  pathname.startsWith("/join") ||
-  pathname.includes("webhook");
-
-  // Logged-in users shouldn't see auth pages
-  if (isAuthPage && isLoggedIn) {
-    return NextResponse.redirect(new URL("/onboarding", req.url));
+  if (isPublic) {
+    return NextResponse.next();
   }
 
-  // Non-logged-in users can only see public + auth pages
-  if (!isLoggedIn && !isAuthPage && !isPublic) {
-    return NextResponse.redirect(new URL("/auth/login", req.url));
+  // Check for session cookie
+  const sessionToken =
+    request.cookies.get("authjs.session-token")?.value ||
+    request.cookies.get("__Secure-authjs.session-token")?.value;
+
+  if (!sessionToken) {
+    // Not logged in — redirect to login with callbackUrl
+    const loginUrl = new URL("/auth/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Allow onboarding page through
+  if (pathname === "/onboarding") {
+    return NextResponse.next();
   }
 
   return NextResponse.next();
 }
-
-export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
-};
