@@ -36,7 +36,7 @@ async function main() {
   for (const achievement of ACHIEVEMENTS) {
     await db.achievement.upsert({
       where: { key: achievement.key },
-      update: achievement,
+      update: achievement as any,
       create: achievement as any,
     });
   }
