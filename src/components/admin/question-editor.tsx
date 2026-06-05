@@ -13,11 +13,8 @@ import {
   Superscript,
   CheckCircle2,
   AlertTriangle,
-  Eye,
-  EyeOff,
   Divide,
-  Pi,
-  Sigma,
+  Pencil,
 } from "lucide-react";
 import { JAMB_SUBJECTS } from "@/lib/data/nigerian-states";
 import katex from "katex";
@@ -55,54 +52,25 @@ interface QuestionEditorProps {
   onClose: (saved: boolean) => void;
 }
 
-// ─── Math shortcuts ───
-const MATH_TEMPLATES = [
-  { label: "Fraction", insert: "\\frac{a}{b}", icon: Divide, tip: "Fraction: \\frac{numerator}{denominator}" },
-  { label: "Sqrt", insert: "\\sqrt{x}", icon: null, tip: "Square root: \\sqrt{x}" },
-  { label: "Power", insert: "x^{n}", icon: Superscript, tip: "Power: x^{2} or x^{n}" },
-  { label: "Subscript", insert: "x_{n}", icon: Subscript, tip: "Subscript: x_{1}" },
-  { label: "Sum", insert: "\\sum_{i=1}^{n}", icon: Sigma, tip: "Summation" },
-  { label: "Pi", insert: "\\pi", icon: Pi, tip: "Pi constant" },
-  { label: "Theta", insert: "\\theta", icon: null, tip: "Theta" },
-  { label: "Integral", insert: "\\int_{a}^{b}", icon: null, tip: "Integral" },
-  { label: "Infinity", insert: "\\infty", icon: null, tip: "Infinity" },
-  { label: "NotEqual", insert: "\\neq", icon: null, tip: "Not equal" },
-  { label: "LessEq", insert: "\\leq", icon: null, tip: "Less than or equal" },
-  { label: "GreatEq", insert: "\\geq", icon: null, tip: "Greater than or equal" },
-  { label: "PlusMinus", insert: "\\pm", icon: null, tip: "Plus-minus" },
-  { label: "Times", insert: "\\times", icon: null, tip: "Multiplication" },
-  { label: "Div", insert: "\\div", icon: null, tip: "Division" },
-  { label: "Arrow", insert: "\\rightarrow", icon: null, tip: "Right arrow" },
-  { label: "Degree", insert: "^{\\circ}", icon: null, tip: "Degree symbol" },
-  { label: "log", insert: "\\log_{b}", icon: null, tip: "Logarithm" },
-  { label: "sin", insert: "\\sin", icon: null, tip: "Sine" },
-  { label: "cos", insert: "\\cos", icon: null, tip: "Cosine" },
-  { label: "tan", insert: "\\tan", icon: null, tip: "Tangent" },
-];
+function renderMath(text: string): string {
+  if (!text) return '<span style="opacity:0.3">Empty</span>';
 
-// Render inline math using $...$ and display math using $$...$$
-function renderMathPreview(text: string): string {
-  if (!text) return "";
-
-  // Replace display math $$...$$ first
   let result = text.replace(/\$\$(.+?)\$\$/g, (_, math) => {
     try {
-      return katex.renderToString(math.trim(), { displayMode: true, throwOnError: false });
+      return `<div style="margin:8px 0">${katex.renderToString(math.trim(), { displayMode: true, throwOnError: false })}</div>`;
     } catch {
-      return `<span style="color:red">[math error]</span>`;
+      return `<span style="color:#ef4444;font-size:0.75rem">[invalid math]</span>`;
     }
   });
 
-  // Replace inline math $...$
   result = result.replace(/\$(.+?)\$/g, (_, math) => {
     try {
       return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
     } catch {
-      return `<span style="color:red">[math error]</span>`;
+      return `<span style="color:#ef4444;font-size:0.75rem">[invalid math]</span>`;
     }
   });
 
-  // Basic markdown
   result = result.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   result = result.replace(/\*(.+?)\*/g, "<em>$1</em>");
   result = result.replace(/\n/g, "<br/>");
@@ -110,6 +78,325 @@ function renderMathPreview(text: string): string {
   return result;
 }
 
+const MATH_SYMBOLS = [
+  { label: "Fraction", tex: "\\frac{a}{b}" },
+  { label: "Square root", tex: "\\sqrt{x}" },
+  { label: "Nth root", tex: "\\sqrt[n]{x}" },
+  { label: "Power", tex: "x^{2}" },
+  { label: "Subscript", tex: "x_{1}" },
+  { label: "Plus/minus", tex: "\\pm" },
+  { label: "Times", tex: "\\times" },
+  { label: "Divide", tex: "\\div" },
+  { label: "Not equal", tex: "\\neq" },
+  { label: "Less/equal", tex: "\\leq" },
+  { label: "Greater/equal", tex: "\\geq" },
+  { label: "Approx", tex: "\\approx" },
+  { label: "Infinity", tex: "\\infty" },
+  { label: "Pi", tex: "\\pi" },
+  { label: "Theta", tex: "\\theta" },
+  { label: "Alpha", tex: "\\alpha" },
+  { label: "Beta", tex: "\\beta" },
+  { label: "Delta", tex: "\\Delta" },
+  { label: "Sum", tex: "\\sum_{i=1}^{n}" },
+  { label: "Integral", tex: "\\int_{a}^{b}" },
+  { label: "Degree", tex: "^{\\circ}" },
+  { label: "Arrow", tex: "\\rightarrow" },
+  { label: "log", tex: "\\log" },
+  { label: "ln", tex: "\\ln" },
+  { label: "sin", tex: "\\sin" },
+  { label: "cos", tex: "\\cos" },
+  { label: "tan", tex: "\\tan" },
+  { label: "Limit", tex: "\\lim_{x \\to a}" },
+  { label: "Therefore", tex: "\\therefore" },
+  { label: "Perpendicular", tex: "\\perp" },
+];
+
+// ─── Prevent blur helper ───
+// onMouseDown with preventDefault stops the textarea from losing focus
+function preventBlur(e: React.MouseEvent) {
+  e.preventDefault();
+}
+
+// ─── Editable Math Field ───
+function MathField({
+  id,
+  value,
+  onChange,
+  placeholder,
+  minRows,
+  highlight,
+}: {
+  id: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  minRows?: number;
+  highlight?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const startEditing = () => {
+    setEditing(true);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      }
+    });
+  };
+
+  const stopEditing = () => {
+    setEditing(false);
+    setShowPalette(false);
+  };
+
+  const autoResize = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, (minRows || 1) * 24)}px`;
+  };
+
+  useEffect(() => {
+    if (editing) autoResize();
+  }, [editing, value]);
+
+  const insertAtCursor = (tex: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const before = value.substring(0, start);
+    const after = value.substring(end);
+    const newVal = `${before}$${tex}$${after}`;
+    onChange(newVal);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + tex.length + 2;
+      el.setSelectionRange(pos, pos);
+      autoResize();
+    });
+  };
+
+  const insertFormat = (format: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const selected = value.substring(start, end);
+    let wrapped = "";
+    switch (format) {
+      case "bold": wrapped = `**${selected || "text"}**`; break;
+      case "italic": wrapped = `*${selected || "text"}*`; break;
+      case "inlinemath": wrapped = `$${selected || "x"}$`; break;
+      case "displaymath": wrapped = `$$${selected || "\\frac{a}{b}"}$$`; break;
+    }
+    const newVal = value.substring(0, start) + wrapped + value.substring(end);
+    onChange(newVal);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + wrapped.length, start + wrapped.length);
+      autoResize();
+    });
+  };
+
+  // ─── Preview mode ───
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={startEditing}
+        className="w-full text-left rounded-xl p-3 transition-all group relative"
+        style={{
+          minHeight: `${Math.max((minRows || 1) * 24 + 8, 42)}px`,
+          background: highlight ? "rgba(34, 197, 94, 0.04)" : "var(--color-surface-light)",
+          border: `1.5px solid ${highlight ? "rgba(34, 197, 94, 0.2)" : "var(--color-surface-border)"}`,
+        }}
+      >
+        {value ? (
+          <div
+            className="text-sm leading-relaxed"
+            style={{ color: "var(--color-text-primary)" }}
+            dangerouslySetInnerHTML={{ __html: renderMath(value) }}
+          />
+        ) : (
+          <span className="text-sm" style={{ color: "var(--color-text-muted)", opacity: 0.5 }}>
+            {placeholder}
+          </span>
+        )}
+        <div
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 rounded-md px-1.5 py-0.5"
+          style={{ background: "var(--color-surface-card)", border: "1px solid var(--color-surface-border)" }}
+        >
+          <Pencil className="h-2.5 w-2.5" style={{ color: "var(--color-text-muted)" }} />
+          <span className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>edit</span>
+        </div>
+      </button>
+    );
+  }
+
+  // ─── Edit mode ───
+  return (
+    <div>
+      {/* Toolbar — all buttons use onMouseDown={preventBlur} */}
+      <div
+        className="flex items-center gap-0.5 mb-1.5 p-1 rounded-lg flex-wrap"
+        style={{ background: "var(--color-surface-light)", border: "1px solid rgba(34, 197, 94, 0.2)" }}
+      >
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("bold")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Bold">
+          <Bold className="h-3 w-3" />
+        </button>
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("italic")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Italic">
+          <Italic className="h-3 w-3" />
+        </button>
+
+        <div style={{ width: "1px", height: "14px", background: "var(--color-surface-border)", margin: "0 2px" }} />
+
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("inlinemath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Inline math: $x$">
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem" }}>$x$</span>
+        </button>
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("displaymath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Display math (centered)">
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem" }}>$$</span>
+        </button>
+
+        <div style={{ width: "1px", height: "14px", background: "var(--color-surface-border)", margin: "0 2px" }} />
+
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertAtCursor("\\frac{}{}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Fraction">
+          <Divide className="h-3 w-3" />
+        </button>
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertAtCursor("\\sqrt{}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Square root">
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5rem" }}>&#8730;</span>
+        </button>
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertAtCursor("x^{2}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Power">
+          <Superscript className="h-3 w-3" />
+        </button>
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertAtCursor("x_{n}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Subscript">
+          <Subscript className="h-3 w-3" />
+        </button>
+
+        <button
+          type="button"
+          onMouseDown={preventBlur}
+          onClick={() => setShowPalette(!showPalette)}
+          className="btn-ghost"
+          style={{
+            padding: "0.25rem 0.375rem",
+            background: showPalette ? "rgba(34,197,94,0.1)" : undefined,
+            color: showPalette ? "var(--color-accent-green)" : undefined,
+          }}
+          title="More math symbols"
+        >
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem", fontWeight: 700 }}>fx</span>
+        </button>
+
+        <button
+          type="button"
+          onMouseDown={preventBlur}
+          onClick={stopEditing}
+          className="btn-ghost ml-auto"
+          style={{ padding: "0.25rem 0.5rem", color: "var(--color-accent-green)", fontSize: "0.625rem", fontWeight: 600 }}
+        >
+          Done
+        </button>
+      </div>
+
+      {/* Symbol palette — also uses onMouseDown={preventBlur} */}
+      {showPalette && (
+        <div
+          className="mb-2 p-2 rounded-lg grid grid-cols-6 gap-1"
+          style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-surface-border)" }}
+          onMouseDown={preventBlur}
+        >
+          {MATH_SYMBOLS.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onMouseDown={preventBlur}
+              onClick={() => insertAtCursor(s.tex)}
+              className="rounded-md p-1.5 text-center transition-all"
+              style={{ background: "transparent" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-card)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              title={s.label}
+            >
+              <div
+                className="flex items-center justify-center"
+                style={{ minHeight: "20px" }}
+                dangerouslySetInnerHTML={{
+                  __html: (() => {
+                    try { return katex.renderToString(s.tex, { throwOnError: false }); }
+                    catch { return s.tex; }
+                  })(),
+                }}
+              />
+              <span className="text-[0.4375rem] block mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                {s.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Textarea */}
+      <textarea
+        ref={textareaRef}
+        id={id}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); autoResize(); }}
+        onBlur={(e) => {
+          // Only stop editing if the click target is outside the entire field container
+          // We check relatedTarget — if it's null (clicked non-focusable) the preventBlur handles it
+          // If relatedTarget exists and is outside, then stop
+          const container = e.currentTarget.closest("[data-math-field]");
+          if (container && e.relatedTarget && container.contains(e.relatedTarget as Node)) {
+            return; // clicking within the field container, don't close
+          }
+          // Small delay to let preventBlur clicks register
+          setTimeout(() => {
+            if (document.activeElement !== textareaRef.current) {
+              stopEditing();
+            }
+          }, 150);
+        }}
+        placeholder={placeholder}
+        rows={minRows || 2}
+        className="input-field"
+        style={{
+          resize: "vertical",
+          lineHeight: "1.6",
+          minHeight: `${Math.max((minRows || 1) * 24, 42)}px`,
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.8125rem",
+          borderColor: "rgba(34, 197, 94, 0.3)",
+        }}
+      />
+
+      {/* Live preview */}
+      {value && (
+        <div
+          className="mt-1.5 rounded-lg px-3 py-2"
+          onMouseDown={preventBlur}
+          style={{ background: "var(--color-surface)", border: "1px solid var(--color-surface-border)" }}
+        >
+          <p className="text-[0.5rem] uppercase tracking-wider mb-1" style={{ color: "var(--color-text-muted)" }}>
+            Preview
+          </p>
+          <div
+            className="text-sm leading-relaxed"
+            style={{ color: "var(--color-text-primary)" }}
+            dangerouslySetInnerHTML={{ __html: renderMath(value) }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Editor ───
 export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
   const isEditing = !!question?.id;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,9 +407,6 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(question?.imageUrl || null);
   const [isDirty, setIsDirty] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showMathPalette, setShowMathPalette] = useState(false);
-  const [activeMathField, setActiveMathField] = useState<string>("body");
 
   const [form, setForm] = useState<QuestionData>({
     subject: question?.subject || "",
@@ -153,19 +437,15 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
   }, [form.subject]);
 
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) { e.preventDefault(); e.returnValue = ""; }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    const handler = (e: BeforeUnloadEvent) => { if (isDirty) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); attemptClose(); }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); attemptClose(); } };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [isDirty]);
 
   const updateField = (field: keyof QuestionData, value: any) => {
@@ -178,48 +458,6 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
     else onClose(false);
   }, [isDirty, onClose]);
 
-  const confirmClose = () => { setShowCloseConfirm(false); onClose(false); };
-
-  const insertAtCursor = (fieldId: string, fieldKey: keyof QuestionData, text: string) => {
-    const textarea = document.getElementById(fieldId) as HTMLTextAreaElement;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const current = (form[fieldKey] as string) || "";
-    const before = current.substring(0, start);
-    const after = current.substring(end);
-    const newVal = `${before}$${text}$${after}`;
-    updateField(fieldKey, newVal);
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursorPos = start + text.length + 2; // +2 for the $ signs
-      textarea.setSelectionRange(cursorPos, cursorPos);
-    });
-  };
-
-  const insertFormat = (field: string, fieldKey: keyof QuestionData, format: string) => {
-    const textarea = document.getElementById(field) as HTMLTextAreaElement;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = (form[fieldKey] as string) || "";
-    const selected = text.substring(start, end);
-    let wrapped = "";
-    switch (format) {
-      case "bold": wrapped = `**${selected || "text"}**`; break;
-      case "italic": wrapped = `*${selected || "text"}*`; break;
-      case "inlinemath": wrapped = `$${selected || "x^2"}$`; break;
-      case "displaymath": wrapped = `$$${selected || "\\frac{a}{b}"}$$`; break;
-    }
-    const newText = text.substring(0, start) + wrapped + text.substring(end);
-    updateField(fieldKey, newText);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + wrapped.length, start + wrapped.length);
-    });
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -228,17 +466,15 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
       const reader = new FileReader();
       reader.onload = (ev) => setImagePreview(ev.target?.result as string);
       reader.readAsDataURL(file);
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Upload failed"); setImagePreview(null); return; }
       updateField("imageUrl", data.url);
     } catch { setError("Upload failed"); setImagePreview(null); }
     finally { setUploading(false); }
   };
-
-  const removeImage = () => { updateField("imageUrl", null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
 
   const handleSave = async () => {
     setSaving(true); setError("");
@@ -256,138 +492,6 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
   };
 
   const selectedTopic = topics.find((t) => t.id === form.topicId);
-
-  const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    const target = e.target as HTMLTextAreaElement;
-    target.style.height = "auto";
-    target.style.height = `${Math.max(target.scrollHeight, 42)}px`;
-  };
-
-  // Math toolbar component
-  const MathToolbar = ({ fieldId, fieldKey }: { fieldId: string; fieldKey: keyof QuestionData }) => (
-    <div
-      className="flex items-center gap-1 mb-1.5 p-1 rounded-lg flex-wrap"
-      style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-surface-border)" }}
-    >
-      <button type="button" onClick={() => insertFormat(fieldId, fieldKey, "bold")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem", fontSize: "0.625rem" }} title="Bold">
-        <Bold className="h-3 w-3" />
-      </button>
-      <button type="button" onClick={() => insertFormat(fieldId, fieldKey, "italic")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem", fontSize: "0.625rem" }} title="Italic">
-        <Italic className="h-3 w-3" />
-      </button>
-
-      <div style={{ width: "1px", height: "16px", background: "var(--color-surface-border)", margin: "0 2px" }} />
-
-      <button type="button" onClick={() => insertFormat(fieldId, fieldKey, "inlinemath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem", fontSize: "0.625rem" }} title="Inline math: $x^2$">
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.625rem" }}>$x$</span>
-      </button>
-      <button type="button" onClick={() => insertFormat(fieldId, fieldKey, "displaymath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem", fontSize: "0.625rem" }} title="Display math: $$\\frac{a}{b}$$">
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.625rem" }}>$$</span>
-      </button>
-
-      <div style={{ width: "1px", height: "16px", background: "var(--color-surface-border)", margin: "0 2px" }} />
-
-      {/* Quick math inserts */}
-      <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "\\frac{}{}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Fraction">
-        <Divide className="h-3 w-3" />
-      </button>
-      <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "\\sqrt{}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Square root">
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem" }}>sqrt</span>
-      </button>
-      <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "x^{2}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Superscript">
-        <Superscript className="h-3 w-3" />
-      </button>
-      <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "x_{n}")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Subscript">
-        <Subscript className="h-3 w-3" />
-      </button>
-
-      {/* Math palette toggle */}
-      <button
-        type="button"
-        onClick={() => { setActiveMathField(fieldId); setShowMathPalette(!showMathPalette || activeMathField !== fieldId); }}
-        className="btn-ghost"
-        style={{
-          padding: "0.25rem 0.375rem",
-          background: showMathPalette && activeMathField === fieldId ? "rgba(34,197,94,0.1)" : undefined,
-          color: showMathPalette && activeMathField === fieldId ? "var(--color-accent-green)" : undefined,
-        }}
-        title="More math symbols"
-      >
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.625rem" }}>fx</span>
-      </button>
-
-      {/* Preview toggle */}
-      <button
-        type="button"
-        onClick={() => setShowPreview(!showPreview)}
-        className="btn-ghost ml-auto"
-        style={{
-          padding: "0.25rem 0.375rem",
-          color: showPreview ? "var(--color-accent-green)" : undefined,
-        }}
-        title={showPreview ? "Hide preview" : "Show preview"}
-      >
-        {showPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-      </button>
-    </div>
-  );
-
-  // Math palette dropdown
-  const MathPalette = ({ fieldId, fieldKey }: { fieldId: string; fieldKey: keyof QuestionData }) => {
-    if (!showMathPalette || activeMathField !== fieldId) return null;
-
-    return (
-      <div
-        className="mb-2 p-2 rounded-lg grid grid-cols-5 gap-1"
-        style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-surface-border)" }}
-      >
-        {MATH_TEMPLATES.map((t) => (
-          <button
-            key={t.label}
-            type="button"
-            onClick={() => { insertAtCursor(fieldId, fieldKey, t.insert); setShowMathPalette(false); }}
-            className="rounded-lg p-1.5 text-center transition-all"
-            style={{ background: "transparent", fontSize: "0.5625rem", color: "var(--color-text-tertiary)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-card)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-            title={t.tip}
-          >
-            <div
-              className="mb-0.5 text-center"
-              style={{ minHeight: "18px" }}
-              dangerouslySetInnerHTML={{
-                __html: (() => {
-                  try { return katex.renderToString(t.insert, { throwOnError: false }); }
-                  catch { return t.insert; }
-                })(),
-              }}
-            />
-            <span className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>{t.label}</span>
-          </button>
-        ))}
-      </div>
-    );
-  };
-
-  // Preview panel
-  const PreviewPanel = ({ text, label }: { text: string; label: string }) => {
-    if (!showPreview || !text) return null;
-    return (
-      <div
-        className="mt-1.5 rounded-lg p-3"
-        style={{ background: "var(--color-surface)", border: "1px solid var(--color-surface-border)" }}
-      >
-        <p className="text-[0.5rem] uppercase tracking-wider mb-1.5" style={{ color: "var(--color-text-muted)" }}>
-          {label} Preview
-        </p>
-        <div
-          className="text-sm leading-relaxed"
-          style={{ color: "var(--color-text-primary)" }}
-          dangerouslySetInnerHTML={{ __html: renderMathPreview(text) }}
-        />
-      </div>
-    );
-  };
 
   return (
     <>
@@ -425,9 +529,8 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
               </div>
             )}
 
-            {/* Math syntax hint */}
             <div className="rounded-lg px-3 py-2 text-[0.625rem]" style={{ background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.1)", color: "var(--color-text-muted)" }}>
-              Use <code style={{ background: "var(--color-surface-lighter)", padding: "1px 4px", borderRadius: "3px", color: "var(--color-accent-green)" }}>$...$</code> for inline math and <code style={{ background: "var(--color-surface-lighter)", padding: "1px 4px", borderRadius: "3px", color: "var(--color-accent-green)" }}>$$...$$</code> for display math. Example: <code style={{ background: "var(--color-surface-lighter)", padding: "1px 4px", borderRadius: "3px" }}>$\frac&#123;1&#125;&#123;2&#125;$</code> renders as a fraction.
+              Click any field to edit. Use the toolbar to insert math symbols — they render as you type.
             </div>
 
             {/* Subject + Topic */}
@@ -483,23 +586,23 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             {/* Question body */}
             <div>
               <label className="label">Question *</label>
-              <MathToolbar fieldId="field-body" fieldKey="body" />
-              <MathPalette fieldId="field-body" fieldKey="body" />
-              <textarea id="field-body" value={form.body} onChange={(e) => updateField("body", e.target.value)} onInput={autoResize}
-                placeholder="Type your question here... Use $...$ for math" rows={4} className="input-field"
-                style={{ resize: "vertical", lineHeight: "1.6", minHeight: "100px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
-                onFocus={() => setActiveMathField("field-body")}
+              <MathField
+                id="field-body"
+                value={form.body}
+                onChange={(v) => updateField("body", v)}
+                placeholder="Click here to type your question..."
+                minRows={4}
               />
-              <PreviewPanel text={form.body} label="Question" />
             </div>
 
-            {/* Image upload */}
+            {/* Image */}
             <div>
               <label className="label">Image (optional)</label>
               {imagePreview ? (
                 <div className="relative rounded-xl overflow-hidden" style={{ background: "var(--color-surface-lighter)", border: "1px solid var(--color-surface-border)" }}>
                   <img src={imagePreview} alt="" className="mx-auto max-h-48 object-contain p-3" />
-                  <button type="button" onClick={removeImage} className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "rgba(239,68,68,0.9)", color: "white" }}>
+                  <button type="button" onClick={() => { updateField("imageUrl", null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "rgba(239,68,68,0.9)", color: "white" }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -507,7 +610,7 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
                   className="flex w-full items-center justify-center gap-2 rounded-xl py-6 transition-all"
                   style={{ background: "var(--color-surface-light)", border: "2px dashed var(--color-surface-border)", color: "var(--color-text-tertiary)" }}>
-                  {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<><Upload className="h-4 w-4" /><span className="text-xs">Upload image</span></>)}
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : (<><Upload className="h-4 w-4" /><span className="text-xs">Upload image</span></>)}
                 </button>
               )}
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
@@ -515,69 +618,39 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
 
             {/* Options */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-2">
                 <label className="label" style={{ marginBottom: 0 }}>Options *</label>
-                <p className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>
-                  Click letter = correct | Use $...$ for math
-                </p>
+                <p className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>Click letter to mark correct</p>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {(["A", "B", "C", "D"] as const).map((key) => {
                   const fieldKey = `option${key}` as "optionA" | "optionB" | "optionC" | "optionD";
-                  const fieldId = `field-option${key}`;
                   const isCorrect = form.correctOption === key;
 
                   return (
-                    <div key={key}>
-                      <div className="flex items-start gap-2">
-                        <button type="button" onClick={() => updateField("correctOption", key)}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-all mt-1"
-                          style={{
-                            background: isCorrect ? "var(--color-accent-green)" : "var(--color-surface-lighter)",
-                            color: isCorrect ? "var(--color-surface)" : "var(--color-text-muted)",
-                            border: `1.5px solid ${isCorrect ? "var(--color-accent-green)" : "var(--color-surface-border)"}`,
-                            fontFamily: "var(--font-mono)",
-                          }}
-                          title={isCorrect ? "Correct answer" : "Mark as correct"}>
-                          {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : key}
-                        </button>
-                        <div className="flex-1">
-                          {/* Mini toolbar for options */}
-                          <div className="flex items-center gap-0.5 mb-1">
-                            <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "\\frac{}{}")} className="btn-ghost" style={{ padding: "1px 3px" }} title="Fraction">
-                              <Divide className="h-2.5 w-2.5" style={{ opacity: 0.5 }} />
-                            </button>
-                            <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "\\sqrt{}")} className="btn-ghost" style={{ padding: "1px 3px" }} title="Square root">
-                              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5rem", opacity: 0.5 }}>sqrt</span>
-                            </button>
-                            <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "x^{2}")} className="btn-ghost" style={{ padding: "1px 3px" }} title="Superscript">
-                              <Superscript className="h-2.5 w-2.5" style={{ opacity: 0.5 }} />
-                            </button>
-                            <button type="button" onClick={() => insertAtCursor(fieldId, fieldKey, "x_{n}")} className="btn-ghost" style={{ padding: "1px 3px" }} title="Subscript">
-                              <Subscript className="h-2.5 w-2.5" style={{ opacity: 0.5 }} />
-                            </button>
-                            <button type="button" onClick={() => { setActiveMathField(fieldId); setShowMathPalette(!showMathPalette || activeMathField !== fieldId); }} className="btn-ghost" style={{ padding: "1px 3px" }} title="More symbols">
-                              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5rem", opacity: 0.5 }}>fx</span>
-                            </button>
-                          </div>
-                          {activeMathField === fieldId && <MathPalette fieldId={fieldId} fieldKey={fieldKey} />}
-                          <textarea id={fieldId} value={(form as any)[fieldKey]} onChange={(e) => updateField(fieldKey, e.target.value)} onInput={autoResize}
-                            placeholder={`Option ${key}... (use $...$ for math)`} rows={1} className="input-field"
-                            style={{
-                              resize: "vertical", lineHeight: "1.5", minHeight: "42px",
-                              fontFamily: "var(--font-mono)", fontSize: "0.8125rem",
-                              borderColor: isCorrect ? "rgba(34,197,94,0.3)" : undefined,
-                              background: isCorrect ? "rgba(34,197,94,0.04)" : undefined,
-                            }}
-                            onFocus={() => setActiveMathField(fieldId)}
-                          />
-                          {showPreview && (form as any)[fieldKey] && (
-                            <div className="mt-1 rounded-md px-2 py-1.5" style={{ background: "var(--color-surface)", border: "1px solid var(--color-surface-border)" }}>
-                              <div className="text-xs" style={{ color: "var(--color-text-primary)" }}
-                                dangerouslySetInnerHTML={{ __html: renderMathPreview((form as any)[fieldKey]) }} />
-                            </div>
-                          )}
-                        </div>
+                    <div key={key} className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateField("correctOption", key)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-all mt-1"
+                        style={{
+                          background: isCorrect ? "var(--color-accent-green)" : "var(--color-surface-lighter)",
+                          color: isCorrect ? "var(--color-surface)" : "var(--color-text-muted)",
+                          border: `1.5px solid ${isCorrect ? "var(--color-accent-green)" : "var(--color-surface-border)"}`,
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
+                        {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : key}
+                      </button>
+                      <div className="flex-1">
+                        <MathField
+                          id={`field-option${key}`}
+                          value={(form as any)[fieldKey]}
+                          onChange={(v) => updateField(fieldKey, v)}
+                          placeholder={`Option ${key}...`}
+                          minRows={1}
+                          highlight={isCorrect}
+                        />
                       </div>
                     </div>
                   );
@@ -588,14 +661,13 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             {/* Explanation */}
             <div>
               <label className="label">Explanation</label>
-              <MathToolbar fieldId="field-explanation" fieldKey="explanation" />
-              {activeMathField === "field-explanation" && <MathPalette fieldId="field-explanation" fieldKey="explanation" />}
-              <textarea id="field-explanation" value={form.explanation || ""} onChange={(e) => updateField("explanation", e.target.value)} onInput={autoResize}
-                placeholder="Explain why the correct answer is right... Use $...$ for math" rows={3} className="input-field"
-                style={{ resize: "vertical", lineHeight: "1.6", minHeight: "80px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
-                onFocus={() => setActiveMathField("field-explanation")}
+              <MathField
+                id="field-explanation"
+                value={form.explanation || ""}
+                onChange={(v) => updateField("explanation", v)}
+                placeholder="Explain why the correct answer is right..."
+                minRows={3}
               />
-              <PreviewPanel text={form.explanation || ""} label="Explanation" />
             </div>
           </div>
 
@@ -627,7 +699,8 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             <p className="text-sm mb-6" style={{ color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>You have unsaved changes. Are you sure you want to close?</p>
             <div className="flex gap-3">
               <button onClick={() => setShowCloseConfirm(false)} className="btn-secondary flex-1">Keep Editing</button>
-              <button onClick={confirmClose} className="flex-1 rounded-xl py-2.5 text-sm font-semibold" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--color-danger-400)" }}>
+              <button onClick={() => { setShowCloseConfirm(false); onClose(false); }} className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "var(--color-danger-400)" }}>
                 Discard
               </button>
             </div>
