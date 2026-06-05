@@ -84,6 +84,7 @@ export default function AdminQuestionsPage() {
   const [filterSubject, setFilterSubject] = useState("");
   const [filterTopic, setFilterTopic] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
+  const [filterYear, setFilterYear] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
   const [topicOptions, setTopicOptions] = useState<TopicOption[]>([]);
@@ -111,7 +112,7 @@ export default function AdminQuestionsPage() {
       }
     }
     loadTopics();
-    setFilterTopic(""); // reset topic when subject changes
+    setFilterTopic("");
   }, [filterSubject]);
 
   const fetchQuestions = useCallback(async (page = 1) => {
@@ -121,6 +122,7 @@ export default function AdminQuestionsPage() {
       if (filterSubject) params.set("subject", filterSubject);
       if (filterTopic) params.set("topicId", filterTopic);
       if (filterDifficulty) params.set("difficulty", filterDifficulty);
+      if (filterYear) params.set("year", filterYear);
       if (searchDebounced) params.set("search", searchDebounced);
 
       const res = await fetch(`/api/admin/questions?${params}`);
@@ -132,24 +134,24 @@ export default function AdminQuestionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterSubject, filterTopic, filterDifficulty, searchDebounced]);
+  }, [filterSubject, filterTopic, filterDifficulty, filterYear, searchDebounced]);
 
   useEffect(() => { fetchQuestions(1); }, [fetchQuestions]);
 
-const handleDelete = async (id: string) => {
-  if (!confirm("Delete this question? All student responses for this question will also be deleted. This cannot be undone.")) return;
-  try {
-    const res = await fetch(`/api/admin/questions/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || "Failed to delete");
-      return;
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this question? All student responses for this question will also be deleted. This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/admin/questions/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to delete");
+        return;
+      }
+      fetchQuestions(pagination.page);
+    } catch {
+      alert("Network error — failed to delete");
     }
-    fetchQuestions(pagination.page);
-  } catch {
-    alert("Network error — failed to delete");
-  }
-};
+  };
 
   const handleToggleActive = async (id: string, isActive: boolean) => {
     try {
@@ -174,6 +176,16 @@ const handleDelete = async (id: string) => {
     return { color: "var(--color-warning-400)", bg: "rgba(245, 158, 11, 0.1)" };
   };
 
+  const hasActiveFilters = filterSubject || filterTopic || filterDifficulty || filterYear || searchDebounced;
+
+  const clearAllFilters = () => {
+    setFilterSubject("");
+    setFilterTopic("");
+    setFilterDifficulty("");
+    setFilterYear("");
+    setSearchQuery("");
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       {/* Header */}
@@ -183,7 +195,7 @@ const handleDelete = async (id: string) => {
             Question Bank
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-            {pagination.total} questions total
+            {pagination.total} question{pagination.total !== 1 ? "s" : ""} {hasActiveFilters ? "matching filters" : "total"}
           </p>
         </div>
         <button
@@ -214,7 +226,7 @@ const handleDelete = async (id: string) => {
           />
         </div>
 
-        {/* Row 2: Subject + Topic + Difficulty */}
+        {/* Row 2: Subject + Topic + Difficulty + Year */}
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={filterSubject}
@@ -246,7 +258,7 @@ const handleDelete = async (id: string) => {
           <select
             value={filterDifficulty}
             onChange={(e) => setFilterDifficulty(e.target.value)}
-            className="input-field sm:w-36"
+            className="input-field sm:w-32"
             style={{ appearance: "none" }}
           >
             <option value="">All levels</option>
@@ -254,12 +266,25 @@ const handleDelete = async (id: string) => {
             <option value="MEDIUM">Medium</option>
             <option value="HARD">Hard</option>
           </select>
+
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="input-field sm:w-28"
+            style={{ appearance: "none" }}
+          >
+            <option value="">All years</option>
+            {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
         </div>
 
         {/* Active filter pills */}
-        {(filterSubject || filterTopic || filterDifficulty || searchDebounced) && (
+        {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[0.625rem]" style={{ color: "var(--color-text-muted)" }}>Filters:</span>
+
             {filterSubject && (
               <button
                 onClick={() => setFilterSubject("")}
@@ -271,9 +296,10 @@ const handleDelete = async (id: string) => {
                 }}
               >
                 {JAMB_SUBJECTS.find((s) => s.value === filterSubject)?.label || filterSubject}
-                <span style={{ marginLeft: "2px" }}>×</span>
+                <span style={{ marginLeft: "2px" }}>x</span>
               </button>
             )}
+
             {filterTopic && (
               <button
                 onClick={() => setFilterTopic("")}
@@ -285,9 +311,10 @@ const handleDelete = async (id: string) => {
                 }}
               >
                 {topicOptions.find((t) => t.id === filterTopic)?.name || "Topic"}
-                <span style={{ marginLeft: "2px" }}>×</span>
+                <span style={{ marginLeft: "2px" }}>x</span>
               </button>
             )}
+
             {filterDifficulty && (
               <button
                 onClick={() => setFilterDifficulty("")}
@@ -299,11 +326,42 @@ const handleDelete = async (id: string) => {
                 }}
               >
                 {filterDifficulty}
-                <span style={{ marginLeft: "2px" }}>×</span>
+                <span style={{ marginLeft: "2px" }}>x</span>
               </button>
             )}
+
+            {filterYear && (
+              <button
+                onClick={() => setFilterYear("")}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.625rem] transition-colors"
+                style={{
+                  background: "rgba(167, 139, 250, 0.1)",
+                  color: "var(--color-tier-elite)",
+                  border: "1px solid rgba(167, 139, 250, 0.2)",
+                }}
+              >
+                {filterYear}
+                <span style={{ marginLeft: "2px" }}>x</span>
+              </button>
+            )}
+
+            {searchDebounced && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.625rem] transition-colors"
+                style={{
+                  background: "var(--color-surface-lighter)",
+                  color: "var(--color-text-tertiary)",
+                  border: "1px solid var(--color-surface-border)",
+                }}
+              >
+                &quot;{searchDebounced}&quot;
+                <span style={{ marginLeft: "2px" }}>x</span>
+              </button>
+            )}
+
             <button
-              onClick={() => { setFilterSubject(""); setFilterTopic(""); setFilterDifficulty(""); setSearchQuery(""); }}
+              onClick={clearAllFilters}
               className="text-[0.625rem] hover:underline"
               style={{ color: "var(--color-text-muted)" }}
             >
@@ -321,8 +379,19 @@ const handleDelete = async (id: string) => {
       ) : questions.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-sm" style={{ color: "var(--color-text-tertiary)" }}>
-            No questions found. {filterSubject || filterTopic ? "Try different filters or " : ""}Add your first one.
+            {hasActiveFilters
+              ? "No questions match your filters. Try adjusting or clearing them."
+              : "No questions yet. Add your first one."}
           </p>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="btn-secondary mt-3"
+              style={{ fontSize: "0.75rem" }}
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -385,10 +454,20 @@ const handleDelete = async (id: string) => {
             Page {pagination.page} of {pagination.totalPages}
           </p>
           <div className="flex gap-2">
-            <button onClick={() => fetchQuestions(pagination.page - 1)} disabled={pagination.page <= 1} className="btn-secondary" style={{ padding: "0.5rem 0.75rem", opacity: pagination.page <= 1 ? 0.3 : 1 }}>
+            <button
+              onClick={() => fetchQuestions(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+              className="btn-secondary"
+              style={{ padding: "0.5rem 0.75rem", opacity: pagination.page <= 1 ? 0.3 : 1 }}
+            >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <button onClick={() => fetchQuestions(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="btn-secondary" style={{ padding: "0.5rem 0.75rem", opacity: pagination.page >= pagination.totalPages ? 0.3 : 1 }}>
+            <button
+              onClick={() => fetchQuestions(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="btn-secondary"
+              style={{ padding: "0.5rem 0.75rem", opacity: pagination.page >= pagination.totalPages ? 0.3 : 1 }}
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

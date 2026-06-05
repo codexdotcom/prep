@@ -292,7 +292,7 @@ export default function LandingPage() {
     {
       icon: Brain,
       title: "AI That Knows You",
-      description: "The platform studies how you learn — speed, mistakes, confidence — then adapts every quiz, plan, and recommendation to you specifically.",
+      description: "The platform studies how you learn - your speed, mistakes, confidence and then adapts every quiz, plan, and recommendation to you specifically.",
       color: "var(--color-accent-green)",
     },
     {
@@ -329,7 +329,6 @@ export default function LandingPage() {
 
   const stats = [
     { value: 5000, suffix: "+", label: "Past Questions" },
-    { value: 4, suffix: "", label: "JAMB Subjects" },
     { value: 99, suffix: "%", label: "Uptime" },
     { value: 24, suffix: "/7", label: "AI Tutor Access" },
   ];
@@ -370,7 +369,7 @@ export default function LandingPage() {
     },
     {
       q: "What subjects are covered?",
-      a: "All JAMB subjects — Use of English, Mathematics, Physics, Chemistry, Biology, Literature, Government, Economics, Commerce, Accounting, and more. Questions are organized by topic and difficulty.",
+      a: "All JAMB subjects. Use of English, Mathematics, Physics, Chemistry, Biology, Literature, Government, Economics, Commerce, Accounting, and more. Questions are organized by topic and difficulty.",
     },
     {
       q: "How accurate is the score prediction?",
@@ -455,7 +454,7 @@ export default function LandingPage() {
                 className="mb-8 max-w-lg text-base sm:text-lg"
                 style={{ color: "var(--color-text-tertiary)", lineHeight: 1.7 }}
               >
-                JambOS uses AI to predict your JAMB score, find your weak topics, build your study plan, and explain every question — so you stop guessing and start improving.
+                JambOS uses AI to predict your JAMB score, find your weak topics, build your study plan, and explain every question, so you stop guessing and start improving.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
@@ -465,7 +464,7 @@ export default function LandingPage() {
                   style={{ padding: "0.875rem 1.5rem", fontSize: "1rem" }}
                 >
                   <Zap className="h-5 w-5" />
-                  Start Preparing — It&apos;s Free
+                  Start Preparing. It&apos;s Free
                 </Link>
                 <Link
                   href="#how-it-works"
@@ -479,21 +478,7 @@ export default function LandingPage() {
 
               {/* Social proof */}
               <div className="flex items-center gap-4">
-                <div className="flex -space-x-2">
-                  {["C", "E", "F", "A", "O"].map((letter, i) => (
-                    <div
-                      key={i}
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
-                      style={{
-                        background: `hsl(${140 + i * 30}, 60%, ${25 + i * 5}%)`,
-                        border: "2px solid var(--color-surface)",
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
-                      {letter}
-                    </div>
-                  ))}
-                </div>
+               
                 <div>
                   <div className="flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((s) => (
@@ -534,7 +519,7 @@ export default function LandingPage() {
                 </p>
                 <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{label}</p>
               </div>
-            ))}
+            ))} 
           </div>
         </div>
       </section>
@@ -565,7 +550,7 @@ export default function LandingPage() {
               {
                 step: "02",
                 title: "Follow Your Plan",
-                description: "Every day, JambOS generates a personalized study session — targeting your weakest topics with the right difficulty level at the right time.",
+                description: "Every day, JambOS generates a personalized study session, targeting your weakest topics with the right difficulty level at the right time.",
                 icon: BookOpen,
               },
               {
@@ -734,57 +719,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ════════════ TESTIMONIALS ════════════ */}
-      <section className="relative z-10 px-4 py-16 sm:py-24" style={{ background: "var(--color-surface-card)" }}>
-        <div className="mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            <p className="section-label mb-2" style={{ color: "var(--color-accent-green)" }}>RESULTS</p>
-            <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(1.5rem, 3vw, 2rem)", color: "var(--color-text-primary)" }}>
-              Real Students, Real Score Jumps
-            </h2>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            {testimonials.map((t) => (
-              <div
-                key={t.name}
-                className="rounded-2xl p-5"
-                style={{
-                  background: "var(--color-surface)",
-                  border: "1px solid var(--color-surface-border)",
-                }}
-              >
-                <div className="flex items-center gap-0.5 mb-3">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} className="h-3 w-3" fill="var(--color-warning-400)" style={{ color: "var(--color-warning-400)" }} />
-                  ))}
-                </div>
-                <p
-                  className="text-sm mb-4"
-                  style={{ color: "var(--color-text-secondary)", lineHeight: 1.6 }}
-                >
-                  &ldquo;{t.text}&rdquo;
-                </p>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                      {t.name}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{t.state}</p>
-                  </div>
-                  <span
-                    className="badge badge-green"
-                    style={{ fontSize: "0.6875rem", fontWeight: 600 }}
-                  >
-                    {t.score}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ════════════ FAQ ════════════ */}
       <section className="relative z-10 px-4 py-16 sm:py-24">
         <div className="mx-auto max-w-2xl">
@@ -840,7 +774,7 @@ export default function LandingPage() {
             style={{ padding: "1rem 2rem", fontSize: "1rem" }}
           >
             <Zap className="h-5 w-5" />
-            Start Free — No Card Needed
+            Start Free. No Card Needed
           </Link>
 
           <p className="mt-4 text-xs" style={{ color: "var(--color-text-muted)" }}>

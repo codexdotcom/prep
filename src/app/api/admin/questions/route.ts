@@ -32,6 +32,7 @@ export async function GET(req: Request) {
     const subject = searchParams.get("subject");
     const topicId = searchParams.get("topicId");
     const difficulty = searchParams.get("difficulty");
+    const year = searchParams.get("year");
     const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -41,6 +42,7 @@ export async function GET(req: Request) {
     if (subject) where.subject = subject;
     if (topicId) where.topicId = topicId;
     if (difficulty) where.difficulty = difficulty;
+    if (year) where.year = parseInt(year);
     if (search) {
       where.OR = [
         { body: { contains: search, mode: "insensitive" } },
@@ -84,7 +86,6 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // Clean up empty strings before validation
     const cleaned = {
       ...body,
       subtopicId: body.subtopicId || undefined,
