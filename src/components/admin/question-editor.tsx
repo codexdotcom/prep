@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Divide,
   Pencil,
+  Grid3X3,
 } from "lucide-react";
 import { JAMB_SUBJECTS } from "@/lib/data/nigerian-states";
 import katex from "katex";
@@ -55,14 +56,16 @@ interface QuestionEditorProps {
 function renderMath(text: string): string {
   if (!text) return '<span style="opacity:0.3">Empty</span>';
 
-  let result = text.replace(/\$\$(.+?)\$\$/g, (_, math) => {
+  // Display math $$...$$ (use [\s\S] instead of . so it matches newlines)
+  let result = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => {
     try {
-      return `<div style="margin:8px 0">${katex.renderToString(math.trim(), { displayMode: true, throwOnError: false })}</div>`;
+      return `<div style="margin:8px 0;text-align:center">${katex.renderToString(math.trim(), { displayMode: true, throwOnError: false })}</div>`;
     } catch {
       return `<span style="color:#ef4444;font-size:0.75rem">[invalid math]</span>`;
     }
   });
 
+  // Inline math $...$
   result = result.replace(/\$(.+?)\$/g, (_, math) => {
     try {
       return katex.renderToString(math.trim(), { displayMode: false, throwOnError: false });
@@ -78,7 +81,8 @@ function renderMath(text: string): string {
   return result;
 }
 
-const MATH_SYMBOLS = [
+// ─── Symbol categories ───
+const MATH_BASICS = [
   { label: "Fraction", tex: "\\frac{a}{b}" },
   { label: "Square root", tex: "\\sqrt{x}" },
   { label: "Nth root", tex: "\\sqrt[n]{x}" },
@@ -92,32 +96,65 @@ const MATH_SYMBOLS = [
   { label: "Greater/equal", tex: "\\geq" },
   { label: "Approx", tex: "\\approx" },
   { label: "Infinity", tex: "\\infty" },
-  { label: "Pi", tex: "\\pi" },
-  { label: "Theta", tex: "\\theta" },
-  { label: "Alpha", tex: "\\alpha" },
-  { label: "Beta", tex: "\\beta" },
-  { label: "Delta", tex: "\\Delta" },
-  { label: "Sum", tex: "\\sum_{i=1}^{n}" },
-  { label: "Integral", tex: "\\int_{a}^{b}" },
   { label: "Degree", tex: "^{\\circ}" },
   { label: "Arrow", tex: "\\rightarrow" },
-  { label: "log", tex: "\\log" },
-  { label: "ln", tex: "\\ln" },
+  { label: "Therefore", tex: "\\therefore" },
+  { label: "Perpendicular", tex: "\\perp" },
+  { label: "Proportional", tex: "\\propto" },
+];
+
+const MATH_GREEK = [
+  { label: "Alpha", tex: "\\alpha" },
+  { label: "Beta", tex: "\\beta" },
+  { label: "Gamma", tex: "\\gamma" },
+  { label: "Delta", tex: "\\Delta" },
+  { label: "Theta", tex: "\\theta" },
+  { label: "Lambda", tex: "\\lambda" },
+  { label: "Mu", tex: "\\mu" },
+  { label: "Pi", tex: "\\pi" },
+  { label: "Sigma", tex: "\\sigma" },
+  { label: "Omega", tex: "\\omega" },
+  { label: "Phi", tex: "\\phi" },
+  { label: "Epsilon", tex: "\\epsilon" },
+];
+
+const MATH_FUNCTIONS = [
   { label: "sin", tex: "\\sin" },
   { label: "cos", tex: "\\cos" },
   { label: "tan", tex: "\\tan" },
+  { label: "log", tex: "\\log" },
+  { label: "ln", tex: "\\ln" },
+  { label: "log base", tex: "\\log_{b}" },
   { label: "Limit", tex: "\\lim_{x \\to a}" },
-  { label: "Therefore", tex: "\\therefore" },
-  { label: "Perpendicular", tex: "\\perp" },
+  { label: "Sum", tex: "\\sum_{i=1}^{n}" },
+  { label: "Product", tex: "\\prod_{i=1}^{n}" },
+  { label: "Integral", tex: "\\int_{a}^{b}" },
+  { label: "Partial", tex: "\\partial" },
+  { label: "Nabla", tex: "\\nabla" },
 ];
 
-// ─── Prevent blur helper ───
-// onMouseDown with preventDefault stops the textarea from losing focus
+const MATH_MATRICES = [
+  { label: "2x2 Matrix", tex: "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}" },
+  { label: "3x3 Matrix", tex: "\\begin{pmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{pmatrix}" },
+  { label: "2x2 Bracket", tex: "\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}" },
+  { label: "3x3 Bracket", tex: "\\begin{bmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{bmatrix}" },
+  { label: "Determinant", tex: "\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}" },
+  { label: "3x3 Det", tex: "\\begin{vmatrix} a & b & c \\\\ d & e & f \\\\ g & h & i \\end{vmatrix}" },
+  { label: "Column Vec", tex: "\\begin{pmatrix} x \\\\ y \\\\ z \\end{pmatrix}" },
+  { label: "Row Vec", tex: "\\begin{pmatrix} x & y & z \\end{pmatrix}" },
+  { label: "Augmented", tex: "\\left(\\begin{array}{cc|c} a & b & e \\\\ c & d & f \\end{array}\\right)" },
+  { label: "System", tex: "\\begin{cases} ax + by = e \\\\ cx + dy = f \\end{cases}" },
+  { label: "Identity 2x2", tex: "\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}" },
+  { label: "Identity 3x3", tex: "\\begin{pmatrix} 1 & 0 & 0 \\\\ 0 & 1 & 0 \\\\ 0 & 0 & 1 \\end{pmatrix}" },
+];
+
+type PaletteTab = "basics" | "greek" | "functions" | "matrices";
+
 function preventBlur(e: React.MouseEvent) {
   e.preventDefault();
 }
 
-// ─── Editable Math Field ───
+// ─── MathField ───
 function MathField({
   id,
   value,
@@ -135,6 +172,7 @@ function MathField({
 }) {
   const [editing, setEditing] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [paletteTab, setPaletteTab] = useState<PaletteTab>("basics");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const startEditing = () => {
@@ -165,18 +203,21 @@ function MathField({
     if (editing) autoResize();
   }, [editing, value]);
 
-  const insertAtCursor = (tex: string) => {
+  const insertAtCursor = (tex: string, useDisplay?: boolean) => {
     const el = textareaRef.current;
     if (!el) return;
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const before = value.substring(0, start);
     const after = value.substring(end);
-    const newVal = `${before}$${tex}$${after}`;
+
+    // Use display math for matrices (they need line breaks)
+    const wrap = useDisplay ? `$$${tex}$$` : `$${tex}$`;
+    const newVal = `${before}${wrap}${after}`;
     onChange(newVal);
     requestAnimationFrame(() => {
       el.focus();
-      const pos = start + tex.length + 2;
+      const pos = start + wrap.length;
       el.setSelectionRange(pos, pos);
       autoResize();
     });
@@ -202,6 +243,15 @@ function MathField({
       el.setSelectionRange(start + wrapped.length, start + wrapped.length);
       autoResize();
     });
+  };
+
+  const getPaletteSymbols = () => {
+    switch (paletteTab) {
+      case "basics": return MATH_BASICS;
+      case "greek": return MATH_GREEK;
+      case "functions": return MATH_FUNCTIONS;
+      case "matrices": return MATH_MATRICES;
+    }
   };
 
   // ─── Preview mode ───
@@ -242,7 +292,7 @@ function MathField({
   // ─── Edit mode ───
   return (
     <div>
-      {/* Toolbar — all buttons use onMouseDown={preventBlur} */}
+      {/* Toolbar */}
       <div
         className="flex items-center gap-0.5 mb-1.5 p-1 rounded-lg flex-wrap"
         style={{ background: "var(--color-surface-light)", border: "1px solid rgba(34, 197, 94, 0.2)" }}
@@ -256,7 +306,7 @@ function MathField({
 
         <div style={{ width: "1px", height: "14px", background: "var(--color-surface-border)", margin: "0 2px" }} />
 
-        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("inlinemath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Inline math: $x$">
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("inlinemath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Inline math">
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem" }}>$x$</span>
         </button>
         <button type="button" onMouseDown={preventBlur} onClick={() => insertFormat("displaymath")} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Display math (centered)">
@@ -278,6 +328,12 @@ function MathField({
           <Subscript className="h-3 w-3" />
         </button>
 
+        {/* Matrix shortcut */}
+        <button type="button" onMouseDown={preventBlur} onClick={() => insertAtCursor("\\begin{pmatrix} a & b \\\\\\\\ c & d \\end{pmatrix}", true)} className="btn-ghost" style={{ padding: "0.25rem 0.375rem" }} title="Insert 2x2 matrix">
+          <Grid3X3 className="h-3 w-3" />
+        </button>
+
+        {/* Symbol palette toggle */}
         <button
           type="button"
           onMouseDown={preventBlur}
@@ -293,6 +349,7 @@ function MathField({
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.5625rem", fontWeight: 700 }}>fx</span>
         </button>
 
+        {/* Done button */}
         <button
           type="button"
           onMouseDown={preventBlur}
@@ -304,40 +361,84 @@ function MathField({
         </button>
       </div>
 
-      {/* Symbol palette — also uses onMouseDown={preventBlur} */}
+      {/* Symbol palette with tabs */}
       {showPalette && (
         <div
-          className="mb-2 p-2 rounded-lg grid grid-cols-6 gap-1"
+          className="mb-2 rounded-lg overflow-hidden"
           style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-surface-border)" }}
           onMouseDown={preventBlur}
         >
-          {MATH_SYMBOLS.map((s) => (
-            <button
-              key={s.label}
-              type="button"
-              onMouseDown={preventBlur}
-              onClick={() => insertAtCursor(s.tex)}
-              className="rounded-md p-1.5 text-center transition-all"
-              style={{ background: "transparent" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-card)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              title={s.label}
-            >
-              <div
-                className="flex items-center justify-center"
-                style={{ minHeight: "20px" }}
-                dangerouslySetInnerHTML={{
-                  __html: (() => {
-                    try { return katex.renderToString(s.tex, { throwOnError: false }); }
-                    catch { return s.tex; }
-                  })(),
+          {/* Tabs */}
+          <div
+            className="flex border-b"
+            style={{ borderColor: "var(--color-surface-border)" }}
+          >
+            {([
+              { key: "basics" as PaletteTab, label: "Basics" },
+              { key: "greek" as PaletteTab, label: "Greek" },
+              { key: "functions" as PaletteTab, label: "Functions" },
+              { key: "matrices" as PaletteTab, label: "Matrices" },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onMouseDown={preventBlur}
+                onClick={() => setPaletteTab(key)}
+                className="flex-1 py-1.5 text-[0.5625rem] font-semibold transition-all"
+                style={{
+                  background: paletteTab === key ? "var(--color-surface-card)" : "transparent",
+                  color: paletteTab === key ? "var(--color-accent-green)" : "var(--color-text-muted)",
+                  borderBottom: paletteTab === key ? "2px solid var(--color-accent-green)" : "2px solid transparent",
                 }}
-              />
-              <span className="text-[0.4375rem] block mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-                {s.label}
-              </span>
-            </button>
-          ))}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Symbols grid */}
+          <div className={`p-2 grid gap-1 ${paletteTab === "matrices" ? "grid-cols-3" : "grid-cols-6"}`}>
+            {getPaletteSymbols().map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onMouseDown={preventBlur}
+                onClick={() => {
+                  const isMatrix = s.tex.includes("\\begin{");
+                  insertAtCursor(s.tex, isMatrix);
+                }}
+                className="rounded-md p-1.5 text-center transition-all"
+                style={{ background: "transparent" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-card)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                title={s.label}
+              >
+                <div
+                  className="flex items-center justify-center overflow-hidden"
+                  style={{ minHeight: paletteTab === "matrices" ? "40px" : "20px" }}
+                  dangerouslySetInnerHTML={{
+                    __html: (() => {
+                      try {
+                        return katex.renderToString(s.tex, {
+                          throwOnError: false,
+                          displayMode: paletteTab === "matrices",
+                        });
+                      } catch { return s.tex; }
+                    })(),
+                  }}
+                />
+                <span
+                  className="block mt-0.5"
+                  style={{
+                    fontSize: paletteTab === "matrices" ? "0.5rem" : "0.4375rem",
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  {s.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -347,20 +448,12 @@ function MathField({
         id={id}
         value={value}
         onChange={(e) => { onChange(e.target.value); autoResize(); }}
-        onBlur={(e) => {
-          // Only stop editing if the click target is outside the entire field container
-          // We check relatedTarget — if it's null (clicked non-focusable) the preventBlur handles it
-          // If relatedTarget exists and is outside, then stop
-          const container = e.currentTarget.closest("[data-math-field]");
-          if (container && e.relatedTarget && container.contains(e.relatedTarget as Node)) {
-            return; // clicking within the field container, don't close
-          }
-          // Small delay to let preventBlur clicks register
+        onBlur={() => {
           setTimeout(() => {
             if (document.activeElement !== textareaRef.current) {
               stopEditing();
             }
-          }, 150);
+          }, 200);
         }}
         placeholder={placeholder}
         rows={minRows || 2}
@@ -530,7 +623,7 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             )}
 
             <div className="rounded-lg px-3 py-2 text-[0.625rem]" style={{ background: "rgba(34,197,94,0.04)", border: "1px solid rgba(34,197,94,0.1)", color: "var(--color-text-muted)" }}>
-              Click any field to edit. Use the toolbar to insert math symbols — they render as you type.
+              Click any field to edit. Use the toolbar to insert fractions, roots, matrices, and other math symbols.
             </div>
 
             {/* Subject + Topic */}
@@ -586,13 +679,7 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             {/* Question body */}
             <div>
               <label className="label">Question *</label>
-              <MathField
-                id="field-body"
-                value={form.body}
-                onChange={(v) => updateField("body", v)}
-                placeholder="Click here to type your question..."
-                minRows={4}
-              />
+              <MathField id="field-body" value={form.body} onChange={(v) => updateField("body", v)} placeholder="Click here to type your question..." minRows={4} />
             </div>
 
             {/* Image */}
@@ -626,31 +713,20 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
                 {(["A", "B", "C", "D"] as const).map((key) => {
                   const fieldKey = `option${key}` as "optionA" | "optionB" | "optionC" | "optionD";
                   const isCorrect = form.correctOption === key;
-
                   return (
                     <div key={key} className="flex items-start gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateField("correctOption", key)}
+                      <button type="button" onClick={() => updateField("correctOption", key)}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-all mt-1"
                         style={{
                           background: isCorrect ? "var(--color-accent-green)" : "var(--color-surface-lighter)",
                           color: isCorrect ? "var(--color-surface)" : "var(--color-text-muted)",
                           border: `1.5px solid ${isCorrect ? "var(--color-accent-green)" : "var(--color-surface-border)"}`,
                           fontFamily: "var(--font-mono)",
-                        }}
-                      >
+                        }}>
                         {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : key}
                       </button>
                       <div className="flex-1">
-                        <MathField
-                          id={`field-option${key}`}
-                          value={(form as any)[fieldKey]}
-                          onChange={(v) => updateField(fieldKey, v)}
-                          placeholder={`Option ${key}...`}
-                          minRows={1}
-                          highlight={isCorrect}
-                        />
+                        <MathField id={`field-option${key}`} value={(form as any)[fieldKey]} onChange={(v) => updateField(fieldKey, v)} placeholder={`Option ${key}...`} minRows={1} highlight={isCorrect} />
                       </div>
                     </div>
                   );
@@ -661,13 +737,7 @@ export function QuestionEditor({ question, onClose }: QuestionEditorProps) {
             {/* Explanation */}
             <div>
               <label className="label">Explanation</label>
-              <MathField
-                id="field-explanation"
-                value={form.explanation || ""}
-                onChange={(v) => updateField("explanation", v)}
-                placeholder="Explain why the correct answer is right..."
-                minRows={3}
-              />
+              <MathField id="field-explanation" value={form.explanation || ""} onChange={(v) => updateField("explanation", v)} placeholder="Explain why the correct answer is right..." minRows={3} />
             </div>
           </div>
 
