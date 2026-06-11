@@ -21,7 +21,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "JambOS - Your Operating System for Admission.",
   description:
-    "AI-powered JAMB prep platform. Personalized learning, smart analytics, and adaptive practice to score 250+.",
+    "JambOS is an AI-powered admission platform designed to help students prepare for JAMB more effectively through personalized learning, intelligent practice, performance prediction, and adaptive study plans. Rather than simply providing past questions, JambOS acts as a complete operating system for admission, helping students identify weaknesses, improve faster, track progress, and maximize their chances of gaining admission into their desired university and course.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

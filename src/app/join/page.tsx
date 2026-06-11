@@ -31,7 +31,7 @@ function JoinContent() {
         </h1>
 
         <p className="mt-3 text-sm" style={{ color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>
-          A friend thinks you should try PrepGenius — Nigeria&apos;s AI-powered JAMB prep platform.
+          A friend thinks you should try JambOS — Nigeria&apos;s AI-powered JAMB prep platform.
           Sign up and start preparing smarter.
         </p>
 
@@ -56,7 +56,7 @@ function JoinContent() {
           style={{ padding: "1rem", fontSize: "1rem" }}
         >
           <Zap className="h-5 w-5" />
-          Join PrepGenius — It&apos;s Free
+          Join JambOS - It&apos;s Free
         </Link>
 
         <p className="mt-4 text-xs" style={{ color: "var(--color-text-muted)" }}>

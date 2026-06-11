@@ -41,6 +41,22 @@ model User {
   referralCode        ReferralCode?
   challengeAttempts   DailyChallengeAttempt[]
   whatsappSession  WhatsAppSession[]
+    parentLinks      ParentLink[]
+     noteViews       NoteView[]
+  noteUploads     NoteUpload[]
+  schoolEnrollment SchoolEnrollment?
+  careerProfile    CareerProfile?
+    universityMatches   UniversityMatch[]
+  ambassador          Ambassador?
+  ambassadorRecruits  AmbassadorRecruit[] @relation("AmbassadorRecruits")
+  adminCenters        TutorialCenter[]    @relation("CenterAdmin")
+  centerTeacher       CenterTeacher[]
+  centerStudent       CenterStudent[]
+  postUtmeSessions   PostUtmeSession[]
+  admissionTrackers  AdmissionTracker[]
+  tutorProfile       TutorProfile?
+  studentSessions    TutorSession[]  @relation("StudentSessions")
+  studentReviews     TutorReview[]   @relation("StudentReviews")
 }
 
 model Account {
@@ -238,6 +254,7 @@ model Topic {
   studyPlans      StudyPlan[]
   microContent    MicroContent[]
   dailyChallenges     DailyChallenge[]
+  generatedNotes  GeneratedNote[]
 
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -287,7 +304,7 @@ model Question {
   subtopic        Subtopic?      @relation(fields: [subtopicId], references: [id])
   responses       QuestionResponse[]
    flags            FlaggedQuestion[]
-
+ explanationImageUrl String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -736,7 +753,9 @@ model University {
   isActive        Boolean  @default(true)
 
   courses         Course[]
-
+    matches             UniversityMatch[]
+ postUtmeExams      PostUtmeExam[]
+  admissionTrackers  AdmissionTracker[]
   @@index([state])
 }
 
@@ -755,6 +774,8 @@ model Course {
 
   university      University @relation(fields: [universityId], references: [id], onDelete: Cascade)
   realityChecks   RealityCheck[]
+   matches             UniversityMatch[]
+   admissionTrackers  AdmissionTracker[]
 
   @@unique([universityId, name])
   @@index([universityId])
@@ -898,4 +919,629 @@ enum WAState {
   QUIZ_ACTIVE
   WAITING_ANSWER
   ASKING_AI
+}
+
+// ─── Parent Dashboard ───
+model ParentLink {
+  id            String   @id @default(cuid())
+  parentEmail   String
+  studentId     String
+  status        ParentLinkStatus @default(PENDING)
+  accessCode    String   @unique
+  lastViewedAt  DateTime?
+
+  student       User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+
+  @@unique([parentEmail, studentId])
+  @@index([parentEmail])
+  @@index([accessCode])
+}
+
+enum ParentLinkStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+// ─── School Dashboard ───
+model School {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  state         String
+  type          SchoolType
+  adminEmail    String
+  adminName     String
+  plan          SchoolPlan @default(FREE)
+  maxStudents   Int      @default(50)
+  isActive      Boolean  @default(true)
+
+  enrollments   SchoolEnrollment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([state])
+  @@index([code])
+}
+
+model SchoolEnrollment {
+  id        String   @id @default(cuid())
+  schoolId  String
+  userId    String   @unique
+  role      SchoolRole @default(STUDENT)
+  joinedAt  DateTime @default(now())
+
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, userId])
+  @@index([schoolId])
+}
+
+enum SchoolPlan {
+  FREE
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SchoolRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+// ─── Scholarship ───
+model Scholarship {
+  id            String   @id @default(cuid())
+  name          String
+  provider      String
+  description   String   @db.Text
+  amount        String?
+  currency      String   @default("NGN")
+  deadline      DateTime?
+  eligibility   Json
+  url           String?
+  states        String[]
+  courses       String[]
+  minScore      Int?
+  maxScore      Int?
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ─── Career Discovery ───
+model CareerProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  interests     String[]
+  strengths     String[]
+  preferredStyle String?
+  suggestedCareers Json?
+  suggestedCourses Json?
+  completedAt   DateTime?
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model GeneratedNote {
+  id            String   @id @default(cuid())
+  subject       JambSubject
+  topicId       String
+  title         String
+  content       String   @db.Text    // markdown with math
+  summary       String?  @db.Text    // TL;DR version
+  keyFormulas   String[] 
+  commonMistakes String[]
+  examTips      String[]
+  questionCount Int      @default(0)  // how many questions were analyzed
+  difficulty    Difficulty @default(MEDIUM)
+  version       Int      @default(1)
+  isPublished   Boolean  @default(false)
+  generatedFrom Json?                 // { questionIds: [], uploadedFiles: [] }
+
+  topic         Topic    @relation(fields: [topicId], references: [id])
+  views         NoteView[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([subject, topicId, version])
+  @@index([subject, isPublished])
+  @@index([topicId])
+}
+
+model NoteView {
+  id         String   @id @default(cuid())
+  userId     String
+  noteId     String
+  viewedAt   DateTime @default(now())
+  timeSpent  Int      @default(0)
+  bookmarked Boolean  @default(false)
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note       GeneratedNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, noteId])
+  @@index([userId])
+  @@index([userId, bookmarked])
+}
+model NoteUpload {
+  id          String   @id @default(cuid())
+  userId      String
+  subject     JambSubject
+  topicId     String?
+  filename    String
+  fileType    String
+  fileData    String   @db.Text     // base64
+  processed   Boolean  @default(false)
+  extractedText String? @db.Text
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([subject])
+}
+
+// ─── University Match Engine ───
+model UniversityMatch {
+  id            String   @id @default(cuid())
+  userId        String
+  universityId  String
+  courseId       String
+  action        MatchAction
+  matchScore    Int      @default(0)
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university    University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  course        Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, universityId, courseId])
+  @@index([userId, action])
+}
+
+enum MatchAction {
+  LIKED
+  SKIPPED
+  SAVED
+}
+
+model Ambassador {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  code            String   @unique
+  displayName     String?
+  schoolName      String
+  schoolState     String
+  schoolCity      String?
+  schoolType      SchoolType @default(PRIVATE)
+  tier            AmbassadorTier @default(STARTER)
+  isSchoolCaptain Boolean  @default(false)
+  bio             String?  @db.Text
+
+  // Stats
+  totalSignups      Int    @default(0)
+  verifiedReferrals Int    @default(0)  // completed profile + first test
+  premiumConversions Int   @default(0)  // upgraded to paid
+  totalEarnings     Int    @default(0)  // lifetime in Naira
+  pendingPayout     Int    @default(0)
+  monthlyReferrals  Int    @default(0)  // reset monthly
+  monthlyEarnings   Int    @default(0)  // reset monthly
+
+  isActive        Boolean  @default(true)
+  approvedAt      DateTime?
+  lastActiveAt    DateTime?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recruits        AmbassadorRecruit[]
+  payouts         AmbassadorPayout[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([code])
+  @@index([schoolState])
+  @@index([tier])
+  @@index([verifiedReferrals])
+  @@index([totalEarnings])
+}
+
+model AmbassadorRecruit {
+  id              String   @id @default(cuid())
+  ambassadorId    String
+  recruitUserId   String   @unique
+  status          RecruitStatus @default(SIGNED_UP)
+
+  // Milestones
+  profileCompleted  Boolean @default(false)
+  firstTestTaken    Boolean @default(false)
+  upgradedToPremium Boolean @default(false)
+
+  // Earnings from this recruit
+  signupPaid        Boolean @default(false)
+  verifiedPaid      Boolean @default(false)
+  premiumPaid       Boolean @default(false)
+  totalEarned       Int     @default(0)
+
+  convertedAt     DateTime?
+  upgradedAt      DateTime?
+
+  ambassador      Ambassador @relation(fields: [ambassadorId], references: [id], onDelete: Cascade)
+  recruitUser     User       @relation("AmbassadorRecruits", fields: [recruitUserId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([ambassadorId])
+  @@index([status])
+}
+
+model AmbassadorPayout {
+  id            String   @id @default(cuid())
+  ambassadorId  String
+  amount        Int
+  method        String   @default("bank_transfer")
+  bankName      String?
+  accountNumber String?
+  accountName   String?
+  reference     String?
+  status        PayoutStatus @default(PENDING)
+  processedAt   DateTime?
+  note          String?
+
+  ambassador    Ambassador @relation(fields: [ambassadorId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+
+  @@index([ambassadorId])
+  @@index([status])
+}
+
+model AmbassadorChallenge {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  month       Int
+  year        Int
+  prize1      Int      @default(100000)
+  prize2      Int      @default(50000)
+  prize3      Int      @default(25000)
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([month, year])
+}
+
+enum AmbassadorTier {
+  STARTER
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+  LEGEND
+}
+
+enum RecruitStatus {
+  SIGNED_UP
+  PROFILED
+  VERIFIED
+  ACTIVE
+  SUBSCRIBED
+  CHURNED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+
+
+// ─── Tutorial Center Portals ───
+model TutorialCenter {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  state         String
+  city          String?
+  address       String?
+  phone         String?
+  email         String
+  logoUrl       String?
+  brandColor    String   @default("#22c55e")
+  plan          CenterPlan @default(BASIC)
+  maxStudents   Int      @default(50)
+  isActive      Boolean  @default(true)
+
+  adminId       String
+  admin         User     @relation("CenterAdmin", fields: [adminId], references: [id])
+  teachers      CenterTeacher[]
+  students      CenterStudent[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([slug])
+  @@index([state])
+  @@index([adminId])
+}
+
+model CenterTeacher {
+  id        String   @id @default(cuid())
+  centerId  String
+  userId    String
+  role      String   @default("teacher")
+
+  center    TutorialCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt  DateTime @default(now())
+
+  @@unique([centerId, userId])
+}
+
+model CenterStudent {
+  id        String   @id @default(cuid())
+  centerId  String
+  userId    String
+  joinCode  String?
+
+  center    TutorialCenter @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt  DateTime @default(now())
+
+  @@unique([centerId, userId])
+  @@index([centerId])
+}
+
+enum CenterPlan {
+  BASIC
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
+
+
+// ─── Post-UTME Preparation ───
+model PostUtmeExam {
+  id            String   @id @default(cuid())
+  universityId  String
+  year          Int
+  course        String?
+  duration      Int      @default(60) // minutes
+  totalQuestions Int     @default(50)
+  isActive      Boolean  @default(true)
+
+  university    University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  questions     PostUtmeQuestion[]
+  sessions      PostUtmeSession[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([universityId, year, course])
+  @@index([universityId])
+}
+
+model PostUtmeQuestion {
+  id            String   @id @default(cuid())
+  examId        String
+  subject       String
+  body          String   @db.Text
+  imageUrl      String?
+  optionA       String
+  optionB       String
+  optionC       String
+  optionD       String
+  correctOption String
+  explanation   String?  @db.Text
+  difficulty    Difficulty @default(MEDIUM)
+
+  exam          PostUtmeExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  responses     PostUtmeResponse[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([examId])
+}
+
+model PostUtmeSession {
+  id            String   @id @default(cuid())
+  userId        String
+  examId        String
+  score         Int?
+  totalAnswered Int      @default(0)
+  totalCorrect  Int      @default(0)
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  status        TestStatus @default(IN_PROGRESS)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam          PostUtmeExam @relation(fields: [examId], references: [id])
+  responses     PostUtmeResponse[]
+
+  @@index([userId])
+  @@index([examId])
+}
+
+model PostUtmeResponse {
+  id            String   @id @default(cuid())
+  sessionId     String
+  questionId    String
+  selectedOption String?
+  isCorrect     Boolean  @default(false)
+  timeSpent     Int      @default(0)
+
+  session       PostUtmeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question      PostUtmeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  answeredAt    DateTime @default(now())
+
+  @@unique([sessionId, questionId])
+}
+
+// ─── Admission Tracking ───
+model AdmissionTracker {
+  id              String   @id @default(cuid())
+  userId          String
+  universityId    String
+  courseId         String
+  jambScore       Int?
+  postUtmeScore   Int?
+  oLevelGrades    Json?     // { "MATHEMATICS": "A1", "ENGLISH": "B2", ... }
+  status          AdmissionStatus @default(AWAITING_RESULTS)
+  jambRegNumber   String?
+  notes           String?  @db.Text
+  screeningDate   DateTime?
+  resultDate      DateTime?
+  lastChecked     DateTime?
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  university      University @relation(fields: [universityId], references: [id])
+  course          Course     @relation(fields: [courseId], references: [id])
+  updates         AdmissionUpdate[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, universityId, courseId])
+  @@index([userId])
+  @@index([status])
+}
+
+model AdmissionUpdate {
+  id          String   @id @default(cuid())
+  trackerId   String
+  title       String
+  description String   @db.Text
+  type        UpdateType @default(INFO)
+  source      String?
+
+  tracker     AdmissionTracker @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([trackerId])
+}
+
+enum AdmissionStatus {
+  AWAITING_RESULTS
+  JAMB_SUBMITTED
+  POST_UTME_SCHEDULED
+  POST_UTME_COMPLETED
+  SCREENING
+  MERIT_LIST
+  ADMITTED
+  SUPPLEMENTARY
+  NOT_ADMITTED
+  DEFERRED
+}
+
+enum UpdateType {
+  INFO
+  MILESTONE
+  WARNING
+  ACTION_REQUIRED
+}
+
+// ─── Tutor Marketplace ───
+model TutorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  displayName     String
+  bio             String   @db.Text
+  subjects        String[]
+  qualifications  String[]
+  experience      String?
+  hourlyRate      Int          // in Naira
+  rating          Float        @default(0)
+  totalReviews    Int          @default(0)
+  totalSessions   Int          @default(0)
+  isVerified      Boolean      @default(false)
+  isAvailable     Boolean      @default(true)
+  availableSlots  Json?        // { "monday": ["9:00", "10:00"], ... }
+  state           String?
+  avatarUrl       String?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions        TutorSession[]
+  reviews         TutorReview[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isAvailable, isVerified])
+  @@index([rating])
+}
+
+model TutorSession {
+  id            String   @id @default(cuid())
+  tutorId       String
+  studentId     String
+  subject       String
+  topic         String?
+  scheduledAt   DateTime
+  duration      Int      @default(60) // minutes
+  status        SessionStatus @default(PENDING)
+  meetingLink   String?
+  amount        Int      @default(0) // Naira
+  paymentRef    String?
+  notes         String?  @db.Text
+  cancelReason  String?
+
+  tutor         TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  student       User         @relation("StudentSessions", fields: [studentId], references: [id], onDelete: Cascade)
+  review        TutorReview?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tutorId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model TutorReview {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  tutorId     String
+  studentId   String
+  rating      Int      // 1-5
+  comment     String?  @db.Text
+  isPublic    Boolean  @default(true)
+
+  session     TutorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tutor       TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  student     User         @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([tutorId])
+}
+
+enum SessionStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }

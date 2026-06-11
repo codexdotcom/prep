@@ -144,7 +144,7 @@ function generateShareSVG(data: any): string {
 
       <!-- Name + CTA -->
       <text x="32" y="300" font-family="system-ui" font-size="14" fill="rgba(255,255,255,0.6)" font-weight="600">${escapeXml(data.name)}</text>
-      <text x="${width - 32}" y="300" text-anchor="end" font-family="system-ui" font-size="11" fill="#22c55e">prepgenius.ng</text>
+      <text x="${width - 32}" y="300" text-anchor="end" font-family="system-ui" font-size="11" fill="#22c55e">jambos.ng</text>
 
       <!-- Level badge -->
       <rect x="${width - 90}" y="22" width="58" height="26" rx="13" fill="rgba(34,197,94,0.1)" stroke="rgba(34,197,94,0.2)"/>

@@ -8,9 +8,7 @@ export async function GET(
 ) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
     const question = await db.question.findUnique({
@@ -18,10 +16,7 @@ export async function GET(
       include: { topic: true, subtopic: true },
     });
 
-    if (!question) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
+    if (!question) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(question);
   } catch (error) {
     console.error("Get question error:", error);
@@ -35,9 +30,7 @@ export async function PUT(
 ) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
     const body = await req.json();
@@ -55,8 +48,10 @@ export async function PUT(
     if (body.difficulty !== undefined) data.difficulty = body.difficulty;
     if (body.isActive !== undefined) data.isActive = body.isActive;
 
+    // Nullable fields — explicit null handling
     data.subtopicId = body.subtopicId || null;
     data.imageUrl = body.imageUrl || null;
+    data.explanationImageUrl = body.explanationImageUrl || null;
     data.explanation = body.explanation || null;
     data.year = body.year || null;
     data.questionNumber = body.questionNumber || null;
@@ -80,30 +75,23 @@ export async function DELETE(
 ) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
 
-    // Delete related records first to avoid FK violations
     await db.questionResponse.deleteMany({ where: { questionId: id } });
     await db.flaggedQuestion.deleteMany({ where: { questionId: id } });
-
     await db.question.delete({ where: { id } });
 
     return NextResponse.json({ deleted: true });
   } catch (error: any) {
-    console.error("Delete question error:", error);
-
-    // If there's still a FK issue, give a clear message
     if (error.code === "P2003") {
       return NextResponse.json(
         { error: "This question has related data that couldn't be removed. Try deactivating it instead." },
         { status: 409 }
       );
     }
-
+    console.error("Delete question error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

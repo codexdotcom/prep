@@ -11,6 +11,7 @@ const questionSchema = z.object({
   questionNumber: z.number().optional().nullable(),
   body: z.string().min(5, "Question must be at least 5 characters"),
   imageUrl: z.string().optional().nullable().transform((v) => v || null),
+  explanationImageUrl: z.string().optional().nullable().transform((v) => v || null),
   optionA: z.string().min(1, "Option A is required"),
   optionB: z.string().min(1, "Option B is required"),
   optionC: z.string().min(1, "Option C is required"),
@@ -24,9 +25,7 @@ const questionSchema = z.object({
 export async function GET(req: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const subject = searchParams.get("subject");
@@ -80,9 +79,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
 
@@ -90,6 +87,7 @@ export async function POST(req: Request) {
       ...body,
       subtopicId: body.subtopicId || undefined,
       imageUrl: body.imageUrl || null,
+      explanationImageUrl: body.explanationImageUrl || null,
       explanation: body.explanation || undefined,
       year: body.year || null,
       questionNumber: body.questionNumber || null,
@@ -106,6 +104,7 @@ export async function POST(req: Request) {
         questionNumber: validated.questionNumber,
         body: validated.body,
         imageUrl: validated.imageUrl,
+        explanationImageUrl: validated.explanationImageUrl,
         optionA: validated.optionA,
         optionB: validated.optionB,
         optionC: validated.optionC,
@@ -121,7 +120,6 @@ export async function POST(req: Request) {
     return NextResponse.json(question, { status: 201 });
   } catch (error: any) {
     if (error.name === "ZodError") {
-      console.error("Validation errors:", JSON.stringify(error.errors, null, 2));
       return NextResponse.json(
         { error: "Invalid input", details: error.errors.map((e: any) => `${e.path.join(".")}: ${e.message}`) },
         { status: 400 }

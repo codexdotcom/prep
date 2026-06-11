@@ -22,7 +22,10 @@ export function proxy(request: NextRequest) {
     pathname === "/terms" ||
     pathname.startsWith("/subscription/verify") ||
     pathname.startsWith("/join") ||
-    pathname.startsWith("/auth");
+    pathname.startsWith("/auth") ||
+      pathname.startsWith("/parent")
+      pathname.startsWith("/center/join") ||
+pathname.startsWith("/join");
 
   if (isPublic) {
     return NextResponse.next();
