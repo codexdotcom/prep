@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       include: {
         university: true,
       },
-      orderBy: { cutoffScore: "asc" },
+      orderBy: { jambCutoff: "asc" },
     });
 
     // Score each course for this user
@@ -49,8 +49,8 @@ export async function GET(req: Request) {
         let matchScore = 50;
 
         // Score vs cutoff
-        if (c.cutoffScore) {
-          const diff = predictedScore - c.cutoffScore;
+        if (c.jambCutoff) {
+          const diff = predictedScore - c.jambCutoff;
           if (diff >= 50) matchScore += 30;
           else if (diff >= 20) matchScore += 20;
           else if (diff >= 0) matchScore += 10;
@@ -81,12 +81,12 @@ export async function GET(req: Request) {
           universityState: c.university.state,
           universityType: c.university.type,
           courseName: c.name,
-          cutoffScore: c.cutoffScore,
-          capacity: c.capacity,
+          jambCutoff: c.jambCutoff,
+          capacity: c.competitiveness,
           matchScore,
-          admissionChance: predictedScore >= (c.cutoffScore || 180)
-            ? Math.min(95, matchScore + Math.round((predictedScore - (c.cutoffScore || 180)) / 5))
-            : Math.max(5, matchScore - Math.round(((c.cutoffScore || 180) - predictedScore) / 3)),
+          admissionChance: predictedScore >= (c.jambCutoff || 180)
+            ? Math.min(95, matchScore + Math.round((predictedScore - (c.jambCutoff || 180)) / 5))
+            : Math.max(5, matchScore - Math.round(((c.jambCutoff || 180) - predictedScore) / 3)),
         };
       })
       .sort((a, b) => b.matchScore - a.matchScore)

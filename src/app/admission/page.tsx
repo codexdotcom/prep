@@ -36,7 +36,7 @@ interface AiAnalysis {
 }
 
 interface University { id: string; name: string; shortName: string; state: string }
-interface Course { id: string; name: string; cutoffScore: number | null }
+interface Course { id: string; name: string; jambCutoff: number | null }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any; bg: string }> = {
   AWAITING_RESULTS: { label: "Awaiting Results", color: "var(--color-text-muted)", icon: Clock, bg: "var(--color-surface-lighter)" },
@@ -222,7 +222,7 @@ export default function AdmissionPage() {
                   <label className="label">Course</label>
                   <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)} className="input-field" style={{ appearance: "none" }}>
                     <option value="">Select course</option>
-                    {courses.map((c) => <option key={c.id} value={c.id}>{c.name} {c.cutoffScore ? `(Cutoff: ${c.cutoffScore})` : ""}</option>)}
+                    {courses.map((c) => <option key={c.id} value={c.id}>{c.name} {c.jambCutoff ? `(Cutoff: ${c.jambCutoff})` : ""}</option>)}
                   </select>
                 </div>
 

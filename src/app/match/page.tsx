@@ -15,7 +15,7 @@ interface MatchCard {
   universityState: string;
   universityType: string;
   courseName: string;
-  cutoffScore: number | null;
+  jambCutoff: number | null;
   matchScore: number;
   admissionChance: number;
 }
@@ -26,7 +26,7 @@ interface SavedMatch {
   universityShortName: string;
   universityState: string;
   courseName: string;
-  cutoffScore: number | null;
+  jambCutoff: number | null;
   matchScore: number;
   action: string;
 }
@@ -236,8 +236,8 @@ export default function MatchPage() {
                           </div>
                           <div className="rounded-xl p-3" style={{ background: "var(--color-surface-light)" }}>
                             <TrendingUp className="h-3.5 w-3.5 mb-1" style={{ color: "var(--color-text-muted)" }} />
-                            <p className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>{card.cutoffScore || "N/A"}</p>
-                            <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>Cutoff Score</p>
+                            <p className="text-xs font-semibold" style={{ color: "var(--color-text-primary)" }}>{card.jambCutoff || "N/A"}</p>
+                            <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>JAMB Cutoff</p>
                           </div>
                         </div>
 
@@ -253,7 +253,7 @@ export default function MatchPage() {
                             <div style={{ width: `${card.admissionChance}%`, height: "100%", borderRadius: "9999px", background: getChanceColor(card.admissionChance), transition: "width 0.5s" }} />
                           </div>
                           <p className="text-[0.5625rem] mt-1.5" style={{ color: "var(--color-text-muted)" }}>
-                            Your predicted score: {predictedScore} | Cutoff: {card.cutoffScore || "N/A"}
+                            Your predicted score: {predictedScore} | Cutoff: {card.jambCutoff || "N/A"}
                           </p>
                         </div>
                       </div>
@@ -314,10 +314,10 @@ export default function MatchPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <MapPin className="h-3 w-3" style={{ color: "var(--color-text-muted)" }} />
                           <span className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>{m.universityState}</span>
-                          {m.cutoffScore && (
+                          {m.jambCutoff && (
                             <>
                               <span style={{ color: "var(--color-text-muted)", fontSize: "0.5rem" }}>|</span>
-                              <span className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>Cutoff: {m.cutoffScore}</span>
+                              <span className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>JAMB Cutoff: {m.jambCutoff}</span>
                             </>
                           )}
                         </div>

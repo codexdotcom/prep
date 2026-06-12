@@ -11,7 +11,7 @@ export async function GET() {
       where: { userId: session.user.id, action: { in: ["LIKED", "SAVED"] } },
       include: {
         university: { select: { name: true, shortName: true, state: true, type: true } },
-        course: { select: { name: true, cutoffScore: true } },
+        course: { select: { name: true, jambCutoff: true } },
       },
       orderBy: { matchScore: "desc" },
     });
@@ -23,7 +23,7 @@ export async function GET() {
         universityShortName: m.university.shortName,
         universityState: m.university.state,
         courseName: m.course.name,
-        cutoffScore: m.course.cutoffScore,
+        jambCutoff: m.course.jambCutoff,
         matchScore: m.matchScore,
         action: m.action,
         savedAt: m.createdAt,
