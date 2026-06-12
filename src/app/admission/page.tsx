@@ -21,7 +21,7 @@ interface Tracker {
   notes: string | null;
   screeningDate: string | null;
   university: { name: string; shortName: string; state: string };
-  course: { name: string; cutoffScore: number | null };
+  course: { name: string; jambCutoff: number | null };
   updates: Array<{ id: string; title: string; description: string; type: string; createdAt: string }>;
   createdAt: string;
 }
@@ -302,8 +302,8 @@ export default function AdmissionPage() {
                           <p className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>Post-UTME</p>
                         </div>
                         <div className="rounded-lg p-2.5 text-center" style={{ background: "var(--color-surface-light)" }}>
-                          <p className="text-base font-bold" style={{ fontFamily: "var(--font-mono)", color: t.course.cutoffScore ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
-                            {t.course.cutoffScore || "—"}
+                          <p className="text-base font-bold" style={{ fontFamily: "var(--font-mono)", color: t.course.jambCutoff ? "var(--color-text-primary)" : "var(--color-text-muted)" }}>
+                            {t.course.jambCutoff || "—"}
                           </p>
                           <p className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>Cutoff</p>
                         </div>

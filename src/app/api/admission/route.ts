@@ -11,7 +11,7 @@ export async function GET() {
       where: { userId: session.user.id },
       include: {
         university: { select: { name: true, shortName: true, state: true } },
-        course: { select: { name: true, cutoffScore: true } },
+        course: { select: { name: true, jambCutoff: true } },
         updates: { orderBy: { createdAt: "desc" }, take: 5 },
       },
       orderBy: { updatedAt: "desc" },
