@@ -28,7 +28,7 @@ University: ${tracker.university.name} (${tracker.university.state})
 Course: ${tracker.course.name}
 JAMB Score: ${tracker.jambScore || "Not submitted"}
 Post-UTME Score: ${tracker.postUtmeScore || "Not taken"}
-Cutoff Score: ${tracker.course.cutoffScore || "Unknown"}
+Cutoff Score: ${tracker.course.jambCutoff || "Unknown"}
 O-Level Grades: ${tracker.oLevelGrades ? JSON.stringify(tracker.oLevelGrades) : "Not provided"}
 Current Status: ${tracker.status}
 
