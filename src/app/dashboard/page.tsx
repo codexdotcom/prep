@@ -8,9 +8,11 @@ import {
   Flame, Calendar, Crown, GraduationCap, Gift, Settings, User,
   TrendingUp, MessageCircle, Sparkles, Play, Clock, Compass,
   ArrowUpRight, Loader2, RotateCcw, FileText, Shield, Building2,
-  ClipboardList, Users, Home, Award, Heart, Menu, X,
+  ClipboardList, Users, Home, Award, Heart, Menu, X, Activity,
 } from "lucide-react";
 import { Footer } from "@/components/ui/footer";
+import { AdaptiveInsights } from "@/components/dashboard/adaptive-insights";
+import { ScoreHistory } from "@/components/dashboard/score-history";
 
 interface QuickStats {
   predictedScore: number;
@@ -40,11 +42,200 @@ interface TrajectoryData {
   subjectBreakdown: Array<{ subject: string; accuracy: number; gap: number; weakTopics: string[] }>;
 }
 
+// ─── Recent Activity types ───
+type ActivityType =
+  | "practice" | "diagnostic" | "challenge" | "note" | "tutor" | "achievement" | "streak";
+
+interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  title: string;
+  detail?: string;
+  createdAt: string; // ISO string
+  href?: string;     // optional explicit destination
+  score?: number;
+}
+
+const ACTIVITY_CONFIG: Record<ActivityType, { icon: typeof BookOpen; color: string; bg: string; href: string }> = {
+  practice:    { icon: BookOpen,      color: "#22c55e", bg: "#f0fdf4", href: "/practice" },
+  diagnostic:  { icon: Brain,         color: "#3b82f6", bg: "#eff6ff", href: "/diagnostic" },
+  challenge:   { icon: Play,          color: "#22c55e", bg: "#f0fdf4", href: "/challenge" },
+  note:        { icon: FileText,      color: "#3b82f6", bg: "#eff6ff", href: "/notes" },
+  tutor:       { icon: MessageCircle, color: "#8b5cf6", bg: "#f5f3ff", href: "/tutor" },
+  achievement: { icon: Trophy,        color: "#f59e0b", bg: "#fffbeb", href: "/rewards" },
+  streak:      { icon: Flame,         color: "#f59e0b", bg: "#fffbeb", href: "/dashboard" },
+};
+
+// relative time, no em dashes
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ─── Skeleton primitives ───
+function Bar({ w = "100%", h = 12, r = 6 }: { w?: string | number; h?: number; r?: number }) {
+  return (
+    <div className="animate-pulse" style={{ width: w, height: h, borderRadius: r, background: "#eef0f1" }} />
+  );
+}
+
+function SectionSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="rounded-2xl p-5" style={{ background: "#fff", border: "1px solid #eee" }}>
+      <Bar w={120} h={10} />
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: lines }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="animate-pulse shrink-0" style={{ width: 28, height: 28, borderRadius: 8, background: "#eef0f1" }} />
+            <div className="flex-1 space-y-1.5">
+              <Bar w={`${70 - i * 8}%`} h={10} />
+              <Bar w={`${45 - i * 6}%`} h={8} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeroSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="sm:col-span-2 rounded-2xl p-5 flex items-center gap-5" style={{ background: "#fff", border: "1px solid #eee" }}>
+        <div className="animate-pulse shrink-0" style={{ width: 88, height: 88, borderRadius: "9999px", background: "#eef0f1" }} />
+        <div className="flex-1 space-y-3">
+          <Bar w={120} h={10} />
+          <div className="flex gap-5">
+            <Bar w={48} h={24} /><Bar w={48} h={24} /><Bar w={48} h={24} />
+          </div>
+          <Bar w="100%" h={6} />
+        </div>
+      </div>
+      <div className="animate-pulse rounded-2xl" style={{ background: "#f1f2f3", minHeight: 120 }} />
+    </div>
+  );
+}
+
+// ─── Recent Activity (clickable) ───
+function RecentActivity() {
+  const router = useRouter();
+  const [items, setItems] = useState<ActivityItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    // NOTE: adjust this endpoint to your real route + response shape.
+    fetch("/api/activity/recent")
+      .then((r) => r.json())
+      .then((d) => { if (active) setItems(Array.isArray(d) ? d : d?.activities ?? []); })
+      .catch(() => { if (active) setItems([]); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid #eee" }}>
+      <div className="flex items-center justify-between px-5 pt-4 pb-3">
+        <p className="text-[0.5625rem] font-semibold uppercase tracking-widest" style={{ color: "#999" }}>
+          Recent Activity
+        </p>
+        <button onClick={() => router.push("/analytics")} className="text-[0.625rem] font-semibold" style={{ color: "#22c55e" }}>
+          View all
+        </button>
+      </div>
+
+      {loading && (
+        <div className="px-5 pb-4 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="animate-pulse shrink-0" style={{ width: 32, height: 32, borderRadius: 10, background: "#eef0f1" }} />
+              <div className="flex-1 space-y-1.5">
+                <Bar w={`${65 - i * 10}%`} h={10} />
+                <Bar w={`${35 - i * 5}%`} h={8} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && items && items.length === 0 && (
+        // direct-response empty state: specificity + loss aversion + identity
+        <button onClick={() => router.push("/practice")} className="w-full text-left px-5 pb-5 pt-1">
+          <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: "#fafafa", border: "1px solid #f0f0f0" }}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f0fdf4" }}>
+              <Play className="h-4 w-4" style={{ color: "#22c55e" }} />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: "#111" }}>Your activity starts here</p>
+              <p className="text-[0.6875rem] mt-0.5" style={{ color: "#777" }}>
+                Students who finish one session in their first week score 40+ points higher. Take session one now.
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#22c55e" }} />
+          </div>
+        </button>
+      )}
+
+      {!loading && items && items.length > 0 && (
+        <div>
+          {items.slice(0, 6).map((item, i) => {
+            const cfg = ACTIVITY_CONFIG[item.type] ?? ACTIVITY_CONFIG.practice;
+            const Icon = cfg.icon;
+            const dest = item.href ?? cfg.href;
+            return (
+              <button
+                key={item.id}
+                onClick={() => router.push(dest)}
+                className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors"
+                style={{ borderTop: i > 0 ? "1px solid #f5f5f5" : "none" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#fafafa"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: cfg.bg }}>
+                  <Icon className="h-4 w-4" style={{ color: cfg.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate" style={{ color: "#333" }}>{item.title}</p>
+                  {item.detail && (
+                    <p className="text-[0.625rem] mt-0.5 truncate" style={{ color: "#999" }}>{item.detail}</p>
+                  )}
+                </div>
+                {typeof item.score === "number" && (
+                  <span className="text-xs font-bold shrink-0" style={{ fontFamily: "var(--font-mono)", color: "#111" }}>
+                    {item.score}
+                  </span>
+                )}
+                <span className="text-[0.5625rem] shrink-0 w-12 text-right" style={{ color: "#bbb" }}>
+                  {timeAgo(item.createdAt)}
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: "#ddd" }} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const [stats, setStats] = useState<QuickStats | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // Decoupled state: analytics drives hasData + score; xp fills in independently.
+  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [xp, setXp] = useState<any | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
   const [showMobileNav, setShowMobileNav] = useState(false);
 
   const [simAdjustments, setSimAdjustments] = useState<Record<string, number>>({});
@@ -57,31 +248,43 @@ export default function DashboardPage() {
   const [showTraj, setShowTraj] = useState(false);
   const [trajTarget, setTrajTarget] = useState(300);
 
+  // Fire both fetches independently. Score card no longer waits on gamification,
+  // and the data sections mount as soon as hasData is known, fetching in parallel.
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const [analyticsRes, xpRes] = await Promise.all([
-          fetch("/api/analytics/diagnostic").then((r) => r.json()).catch(() => null),
-          fetch("/api/gamification/profile").then((r) => r.json()).catch(() => null),
-        ]);
-        const hasData = analyticsRes?.hasData;
-        setStats({
-          predictedScore: hasData ? analyticsRes.overview.predictedJambScore : 0,
-          totalTests: hasData ? analyticsRes.overview.totalTestsTaken : 0,
-          accuracy: hasData ? analyticsRes.overview.overallAccuracy : 0,
-          targetScore: hasData ? analyticsRes.overview.targetScore : 250,
-          streak: xpRes?.streak?.currentStreak || 0,
-          level: xpRes?.xp?.level || 1,
-          totalXP: xpRes?.xp?.totalXP || 0,
-          hasData: !!hasData,
-        });
-        if (hasData) setTrajTarget(analyticsRes.overview.targetScore || 300);
-      } catch {
-        setStats({ predictedScore: 0, totalTests: 0, accuracy: 0, targetScore: 250, streak: 0, level: 1, totalXP: 0, hasData: false });
-      } finally { setLoading(false); }
-    }
-    fetchStats();
+    let active = true;
+
+    fetch("/api/analytics/diagnostic")
+      .then((r) => r.json())
+      .then((d) => { if (active) setAnalytics(d); })
+      .catch(() => { if (active) setAnalytics({ hasData: false }); })
+      .finally(() => { if (active) setAnalyticsLoading(false); });
+
+    fetch("/api/gamification/profile")
+      .then((r) => r.json())
+      .then((d) => { if (active) setXp(d); })
+      .catch(() => {});
+
+    return () => { active = false; };
   }, []);
+
+  // Set trajectory target once analytics arrives.
+  useEffect(() => {
+    if (analytics?.hasData && analytics.overview?.targetScore) {
+      setTrajTarget(analytics.overview.targetScore);
+    }
+  }, [analytics]);
+
+  const hasData = !!analytics?.hasData;
+  const stats: QuickStats = {
+    predictedScore: hasData ? analytics.overview.predictedJambScore : 0,
+    totalTests: hasData ? analytics.overview.totalTestsTaken : 0,
+    accuracy: hasData ? analytics.overview.overallAccuracy : 0,
+    targetScore: hasData ? analytics.overview.targetScore : 250,
+    streak: xp?.streak?.currentStreak || 0,
+    level: xp?.xp?.level || 1,
+    totalXP: xp?.xp?.totalXP || 0,
+    hasData,
+  };
 
   const firstName = session?.user?.name?.split(" ")[0] || "there";
   const userImage = session?.user?.image;
@@ -164,8 +367,7 @@ export default function DashboardPage() {
               { label: "Tutor", href: "/tutor", icon: MessageCircle },
             ].map(({ label, href, icon: Icon }) => (
               <button key={href} onClick={() => router.push(href)}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ color: "#555" }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors" style={{ color: "#555" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; (e.currentTarget as HTMLElement).style.color = "#111"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#555"; }}>
                 <Icon className="h-3.5 w-3.5" />{label}
@@ -174,7 +376,7 @@ export default function DashboardPage() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {stats && stats.totalXP > 0 && (
+            {stats.totalXP > 0 && (
               <button onClick={() => router.push("/rewards")} className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ background: "#f0fdf4", border: "1px solid #dcfce7" }}>
                 <Zap className="h-3 w-3" style={{ color: "#22c55e" }} />
                 <span className="text-[0.625rem] font-semibold" style={{ fontFamily: "var(--font-mono)", color: "#22c55e" }}>{stats.totalXP.toLocaleString()}</span>
@@ -253,8 +455,10 @@ export default function DashboardPage() {
           {greeting}, <span style={{ color: "#111", fontWeight: 600 }}>{firstName}</span>
         </p>
 
-        {/* Score + Daily Challenge */}
-        {!loading && stats?.hasData && (
+        {/* Hero: skeleton while analytics loads, then score card or diagnostic CTA */}
+        {analyticsLoading ? (
+          <HeroSkeleton />
+        ) : hasData ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
             <div className="sm:col-span-2 rounded-2xl p-5 flex items-center gap-5" style={{ background: "#fff", border: "1px solid #eee" }}>
               {(() => {
@@ -319,26 +523,24 @@ export default function DashboardPage() {
               <ChevronRight className="h-4 w-4 mt-3" style={{ color: "#555" }} />
             </button>
           </div>
-        )}
-
-        {/* No Data CTA */}
-        {!loading && !stats?.hasData && (
+        ) : (
+          // No data: direct-response framing (loss aversion + specificity)
           <button onClick={() => router.push("/diagnostic")} className="w-full rounded-2xl p-6 mb-6 text-left" style={{ background: "#fff", border: "1px solid #eee" }}>
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f0fdf4" }}>
                 <Brain className="h-6 w-6" style={{ color: "#22c55e" }} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "#111" }}>Take your diagnostic test</p>
-                <p className="text-xs mt-0.5" style={{ color: "#999" }}>40 questions, 30 minutes — find out where you stand</p>
+                <p className="text-sm font-semibold" style={{ color: "#111" }}>See your real JAMB score before exam day decides it for you</p>
+                <p className="text-xs mt-0.5" style={{ color: "#777" }}>40 questions, 30 minutes. We map every weak topic so you stop guessing what to study.</p>
               </div>
               <ArrowUpRight className="h-5 w-5 shrink-0" style={{ color: "#22c55e" }} />
             </div>
           </button>
         )}
 
-        {/* Simulator + Trajectory */}
-        {stats?.hasData && (
+        {/* Simulator + Trajectory toggles */}
+        {hasData && (
           <div className="grid grid-cols-2 gap-3 mb-6">
             <button onClick={() => { setShowSim(!showSim); if (!showSim && !simResult) runSim({}); setShowTraj(false); }}
               className="rounded-2xl p-4 text-left transition-all"
@@ -455,6 +657,31 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* ═══ Progress + Knowledge Map + Recent Activity ═══
+            Mount as soon as analytics resolves so they fetch in parallel.
+            While analytics loads, show skeletons so the layout is instant. */}
+        {analyticsLoading ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              <SectionSkeleton lines={3} />
+              <SectionSkeleton lines={3} />
+            </div>
+            <div className="mb-6"><SectionSkeleton lines={3} /></div>
+          </>
+        ) : hasData ? (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              {/* Knowledge map */}
+              <AdaptiveInsights />
+              {/* Progress */}
+              <ScoreHistory />
+            </div>
+            <div className="mb-6">
+              <RecentActivity />
+            </div>
+          </>
+        ) : null}
+
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[
@@ -559,12 +786,9 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* ═══ Footer ═══ */}
-      <div className="hidden sm:block">
-        <Footer />
-      </div>
+      <div className="hidden sm:block"><Footer /></div>
 
-      {/* ═══ Mobile Bottom Tab Bar ═══ */}
+      {/* Mobile Bottom Tab Bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)", borderTop: "1px solid #eee" }}>
         <div className="flex items-center justify-around py-1.5 px-2">
           {[

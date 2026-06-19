@@ -54,6 +54,7 @@ model User {
   centerStudent       CenterStudent[]
   postUtmeSessions   PostUtmeSession[]
   admissionTrackers  AdmissionTracker[]
+  topicAbilities    StudentTopicAbility[]
   tutorProfile       TutorProfile?
   studentSessions    TutorSession[]  @relation("StudentSessions")
   studentReviews     TutorReview[]   @relation("StudentReviews")
@@ -255,7 +256,7 @@ model Topic {
   microContent    MicroContent[]
   dailyChallenges     DailyChallenge[]
   generatedNotes  GeneratedNote[]
-
+studentAbilities  StudentTopicAbility[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -1544,4 +1545,37 @@ enum SessionStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+model StudentTopicAbility {
+  id              String      @id @default(cuid())
+  userId          String
+  topicId         String
+  subject         JambSubject
+
+  ability         Float       @default(50)
+  confidence      Float       @default(0)
+  totalAttempts   Int         @default(0)
+  totalCorrect    Int         @default(0)
+  recentResults   Boolean[]               // last 10 answers (true/false)
+  avgTimeMs       Int?
+  lastPracticedAt DateTime?
+
+  // Streak: positive = correct streak, negative = wrong streak
+  currentStreak   Int         @default(0)
+
+  // Spaced repetition
+  intervalDays    Float       @default(1)
+  easeFactor      Float       @default(2.5)
+  nextReviewAt    DateTime?
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic           Topic       @relation(fields: [topicId], references: [id])
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([userId, topicId])
+  @@index([userId, subject])
+  @@index([userId, nextReviewAt])
 }

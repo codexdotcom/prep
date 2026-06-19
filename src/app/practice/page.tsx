@@ -1,330 +1,122 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BookOpen,
-  Clock,
-  GraduationCap,
-  Target,
-  Brain,
-  Zap,
-  ChevronRight,
-  Loader2,
-  ArrowLeft,
+  BookOpen, GraduationCap, Target, Brain, ArrowLeft,
+  ChevronRight, Flame, Zap, Trophy,
 } from "lucide-react";
-import { Logo } from "@/components/ui/logo";
 
-const TEST_MODES = [
+const MODES = [
   {
-    id: "PRACTICE",
-    title: "Practice",
-    description: "Untimed, single subject. Go at your own pace with instant feedback.",
+    title: "Quick Practice",
+    desc: "Pick a subject and start answering. No timer, no pressure, just you and the questions. Perfect for building confidence.",
     icon: BookOpen,
-    color: "var(--color-accent-green)",
-    bg: "rgba(34, 197, 94, 0.08)",
-    recommended: false,
+    color: "#22c55e",
+    bg: "#f0fdf4",
+    href: "/practice/quick",
+    cta: "Start practicing",
   },
   {
-    id: "TIMED",
-    title: "Timed Practice",
-    description: "Race the clock. Builds speed and exam confidence.",
-    icon: Clock,
-    color: "var(--color-info-400)",
-    bg: "rgba(59, 130, 246, 0.08)",
-    recommended: false,
-  },
-  {
-    id: "MOCK_EXAM",
     title: "Full Mock Exam",
-    description: "180 questions, 2 hours. The real JAMB experience, simulated.",
+    desc: "180 questions. 2 hours. 4 subjects. This is the real JAMB CBT experience.",
     icon: GraduationCap,
-    color: "var(--color-tier-elite)",
-    bg: "rgba(167, 139, 250, 0.08)",
-    recommended: true,
+    color: "#8b5cf6",
+    bg: "#f5f3ff",
+    href: "/practice/mock",
+    cta: "Take mock exam",
+    badge: "Most popular",
   },
   {
-    id: "TOPIC_DRILL",
     title: "Topic Drill",
-    description: "Laser focus on a specific topic until you master it.",
+    desc: "Choose exactly which topics you want to attack. The fastest way to turn a weakness into a strength.",
     icon: Target,
-    color: "var(--color-warning-400)",
-    bg: "rgba(245, 158, 11, 0.08)",
-    recommended: false,
+    color: "#f59e0b",
+    bg: "#fffbeb",
+    href: "/practice/drill",
+    cta: "Drill topics",
   },
   {
-    id: "WEAK_TOPIC",
     title: "Weak Areas",
-    description: "AI picks your weakest topics and drills them specifically.",
+    desc: "We've analyzed every answer you've given. This mode targets the exact topics costing you the most points.",
     icon: Brain,
-    color: "var(--color-danger-400)",
-    bg: "rgba(239, 68, 68, 0.08)",
-    recommended: false,
+    color: "#ef4444",
+    bg: "#fef2f2",
+    href: "/practice/weak",
+    cta: "Fix weak spots",
   },
 ];
-
-const SUBJECTS = [
-  { value: "USE_OF_ENGLISH", label: "Use of English" },
-  { value: "MATHEMATICS", label: "Mathematics" },
-  { value: "PHYSICS", label: "Physics" },
-  { value: "CHEMISTRY", label: "Chemistry" },
-  { value: "BIOLOGY", label: "Biology" },
-  { value: "LITERATURE", label: "Literature" },
-  { value: "GOVERNMENT", label: "Government" },
-  { value: "ECONOMICS", label: "Economics" },
-  { value: "COMMERCE", label: "Commerce" },
-  { value: "ACCOUNTING", label: "Accounting" },
-];
-
-const QUESTION_COUNTS = [10, 20, 40, 60];
 
 export default function PracticePage() {
   const router = useRouter();
-  const [selectedMode, setSelectedMode] = useState<string | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [questionCount, setQuestionCount] = useState(40);
-  const [isStarting, setIsStarting] = useState(false);
-
-  const needsSubject = selectedMode && selectedMode !== "MOCK_EXAM" && selectedMode !== "WEAK_TOPIC";
-  const canStart =
-    selectedMode &&
-    (selectedMode === "MOCK_EXAM" || selectedMode === "WEAK_TOPIC" || selectedSubject);
-
-  const handleStart = async () => {
-    if (!canStart) return;
-    setIsStarting(true);
-
-    try {
-      const res = await fetch("/api/tests/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: selectedMode,
-          subject: selectedSubject,
-          questionCount:
-            selectedMode === "MOCK_EXAM" ? 180 : questionCount,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error);
-
-      // Store session data for the test page
-      sessionStorage.setItem(`test-${data.sessionId}`, JSON.stringify(data));
-      router.push(`/test/${data.sessionId}`);
-    } catch (err: any) {
-      alert(err.message || "Failed to start test");
-      setIsStarting(false);
-    }
-  };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: "var(--color-surface)" }}
-    >
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="btn-ghost mb-4"
-            style={{ marginLeft: "-0.5rem" }}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Dashboard
+    <div className="min-h-screen" style={{ background: "#fafafa" }}>
+      <header className="sticky top-0 z-30" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #eee" }}>
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
+          <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-sm" style={{ color: "#666" }}>
+            <ArrowLeft className="h-4 w-4" /> Dashboard
           </button>
+          <span className="text-sm font-semibold" style={{ color: "#111" }}>Practice</span>
+          <div className="w-20" />
+        </div>
+      </header>
 
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "1.75rem",
-              color: "var(--color-text-primary)",
-              marginBottom: "0.5rem",
-            }}
-          >
-            Start Practicing
-          </h1>
-          <p style={{ color: "var(--color-text-tertiary)", fontSize: "0.9375rem" }}>
-            Choose your mode, subject, and question count
+      <div className="mx-auto max-w-2xl px-4 pt-6 pb-16">
+        {/* Hero */}
+        <div className="rounded-2xl p-5 mb-6" style={{ background: "#111" }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-5 w-5" style={{ color: "#22c55e" }} />
+            <p className="text-base font-bold" style={{ fontFamily: "var(--font-display)", color: "#fff" }}>
+              How do you want to practice?
+            </p>
+          </div>
+          <p className="text-sm leading-relaxed" style={{ color: "#999" }}>
+            The students who score 300+ don't just study more, they practice smarter. Every question you answer teaches the AI more about you, so your practice gets more effective over time.
           </p>
         </div>
 
-        {/* Mode Selection */}
-        <div className="mb-8">
-          <p className="section-label mb-3">Test Mode</p>
-          <div className="space-y-2">
-            {TEST_MODES.map((mode) => {
-              const Icon = mode.icon;
-              const isSelected = selectedMode === mode.id;
-
-              return (
-                <button
-                  key={mode.id}
-                  onClick={() => setSelectedMode(mode.id)}
-                  className="flex w-full items-center gap-4 rounded-xl p-4 text-left transition-all duration-150"
-                  style={{
-                    background: isSelected ? mode.bg : "var(--color-surface-card)",
-                    border: `1.5px solid ${
-                      isSelected ? mode.color : "var(--color-surface-border)"
-                    }`,
-                    boxShadow: isSelected ? `0 0 20px ${mode.color}15` : "none",
-                  }}
-                >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: mode.bg }}
-                  >
-                    <Icon className="h-5 w-5" style={{ color: mode.color }} />
+        {/* Modes */}
+        <div className="space-y-3">
+          {MODES.map((m) => {
+            const Icon = m.icon;
+            return (
+              <button key={m.href} onClick={() => router.push(m.href)}
+                className="w-full rounded-2xl p-5 text-left transition-all group"
+                style={{ background: "#fff", border: "1.5px solid #eee" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = m.color + "50"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#eee"; }}>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: m.bg }}>
+                    <Icon className="h-5 w-5" style={{ color: m.color }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-sm font-semibold"
-                        style={{
-                          color: isSelected
-                            ? mode.color
-                            : "var(--color-text-primary)",
-                        }}
-                      >
-                        {mode.title}
-                      </span>
-                      {mode.recommended && (
-                        <span className="badge badge-green" style={{ fontSize: "0.625rem" }}>
-                          Recommended
-                        </span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-[0.9375rem] font-bold" style={{ color: "#111" }}>{m.title}</p>
+                      {m.badge && (
+                        <span className="text-[0.5625rem] font-semibold rounded-md px-1.5 py-0.5" style={{ background: m.bg, color: m.color }}>{m.badge}</span>
                       )}
                     </div>
-                    <p
-                      className="mt-0.5 text-xs"
-                      style={{ color: "var(--color-text-tertiary)" }}
-                    >
-                      {mode.description}
-                    </p>
+                    <p className="text-sm leading-relaxed mb-3" style={{ color: "#777" }}>{m.desc}</p>
+                    <span className="text-xs font-semibold flex items-center gap-1" style={{ color: m.color }}>
+                      {m.cta} <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </div>
-                  <ChevronRight
-                    className="h-4 w-4 shrink-0"
-                    style={{
-                      color: isSelected
-                        ? mode.color
-                        : "var(--color-text-muted)",
-                    }}
-                  />
-                </button>
-              );
-            })}
-          </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Subject Selection */}
-        {needsSubject && (
-          <div className="mb-8" style={{ animation: "var(--animate-slide-up)" }}>
-            <p className="section-label mb-3">Subject</p>
-            <div className="flex flex-wrap gap-2">
-              {SUBJECTS.map((subject) => {
-                const isSelected = selectedSubject === subject.value;
-
-                return (
-                  <button
-                    key={subject.value}
-                    onClick={() => setSelectedSubject(subject.value)}
-                    className={`subject-pill ${isSelected ? "subject-pill-active" : ""}`}
-                  >
-                    {subject.label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Bottom nudge */}
+        <div className="mt-8 rounded-xl p-4 flex items-start gap-3" style={{ background: "#fffbeb", border: "1px solid #fef3c7" }}>
+          <Flame className="h-5 w-5 shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "#92400e" }}>Consistency beats intensity</p>
+            <p className="text-[0.8125rem] leading-relaxed" style={{ color: "#a16207" }}>
+              20 questions a day for 30 days beats 600 questions in one weekend. Start small, stay consistent, watch your score climb.
+            </p>
           </div>
-        )}
-
-        {/* Question Count (not for mock) */}
-        {selectedMode && selectedMode !== "MOCK_EXAM" && (
-          <div className="mb-8" style={{ animation: "var(--animate-slide-up)" }}>
-            <p className="section-label mb-3">Questions</p>
-            <div className="flex gap-2">
-              {QUESTION_COUNTS.map((count) => {
-                const isSelected = questionCount === count;
-
-                return (
-                  <button
-                    key={count}
-                    onClick={() => setQuestionCount(count)}
-                    className="flex-1 rounded-xl py-3 text-center text-sm font-semibold transition-all duration-150"
-                    style={{
-                      background: isSelected
-                        ? "rgba(34, 197, 94, 0.1)"
-                        : "var(--color-surface-light)",
-                      border: `1.5px solid ${
-                        isSelected
-                          ? "var(--color-accent-green)"
-                          : "var(--color-surface-border)"
-                      }`,
-                      color: isSelected
-                        ? "var(--color-accent-green)"
-                        : "var(--color-text-tertiary)",
-                      fontFamily: "var(--font-mono)",
-                    }}
-                  >
-                    {count}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Start Button */}
-        <button
-          onClick={handleStart}
-          disabled={!canStart || isStarting}
-          className="btn-primary w-full"
-          style={{
-            padding: "1rem",
-            fontSize: "1rem",
-            opacity: canStart ? 1 : 0.4,
-          }}
-        >
-          {isStarting ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <>
-              <Zap className="h-5 w-5" />
-              Start Test
-            </>
-          )}
-        </button>
-
-        {/* Footer */}
-        <footer
-          className="mt-16 pt-6 text-center"
-          style={{ borderTop: "1px solid var(--color-surface-border)" }}
-        >
-          <Logo size="small" />
-          <div
-            className="mt-3 flex items-center justify-center gap-4 text-xs"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            <a href="/privacy" className="transition-colors hover:underline" style={{ color: "var(--color-text-tertiary)" }}>
-              Privacy Policy
-            </a>
-            <span>·</span>
-            <a href="/terms" className="transition-colors hover:underline" style={{ color: "var(--color-text-tertiary)" }}>
-              Terms of Service
-            </a>
-            <span>·</span>
-            <a href="/help" className="transition-colors hover:underline" style={{ color: "var(--color-text-tertiary)" }}>
-              Help
-            </a>
-          </div>
-          <p
-            className="mt-2 text-xs"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            © {new Date().getFullYear()} JambOS. All rights reserved.
-          </p>
-        </footer>
+        </div>
       </div>
     </div>
   );

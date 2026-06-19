@@ -1,144 +1,305 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { z } from "zod";
-
-const startTestSchema = z.object({
-  mode: z.enum(["PRACTICE", "TIMED", "MOCK_EXAM", "TOPIC_DRILL", "WEAK_TOPIC", "DIAGNOSTIC"]),
-  subject: z.string().optional(),
-  subjects: z.array(z.string()).optional(),
-  topicId: z.string().optional(),
-  questionCount: z.number().min(5).max(180).default(40),
-  timeLimit: z.number().min(60).max(7200).optional(),
-});
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+import type { JambSubject, TestMode } from "@prisma/client";
+import { applyForgettingCurve } from "@/lib/adaptive-engine";
 
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.id)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    const body = await req.json();
-    const validated = startTestSchema.parse(body);
+    const { mode, subject, subjects: requestedSubjects, questionCount } =
+      await req.json();
+    const userId = session.user.id;
 
-    // Determine time limit based on mode
-    let timeLimit = validated.timeLimit ?? 0;
-    if (validated.mode === "MOCK_EXAM") {
-      timeLimit = 7200;
-    } else if (validated.mode === "TIMED" && !validated.timeLimit) {
-      timeLimit = validated.questionCount * 60;
-    }
+    // Load student ability data for smart question selection
+    const abilities = await db.studentTopicAbility.findMany({
+      where: { userId },
+      select: {
+        topicId: true,
+        ability: true,
+        lastPracticedAt: true,
+        confidence: true,
+      },
+    });
+    const abilityMap = new Map(
+      abilities.map((a) => {
+        const days = a.lastPracticedAt
+          ? (Date.now() - new Date(a.lastPracticedAt).getTime()) /
+            (1000 * 60 * 60 * 24)
+          : 0;
+        return [
+          a.topicId,
+          {
+            ability:
+              days > 1
+                ? applyForgettingCurve(a.ability, days)
+                : a.ability,
+            confidence: a.confidence,
+          },
+        ];
+      })
+    );
 
-    // Build question query
-    const whereClause: any = { isActive: true };
+    let questions: any[] = [];
+    let finalSubjects: string[] = [];
+    let totalTime = 0; // minutes
 
-    if (validated.mode === "TOPIC_DRILL" && validated.topicId) {
-      whereClause.topicId = validated.topicId;
-    } else if (validated.mode === "MOCK_EXAM" && validated.subjects) {
-      whereClause.subject = { in: validated.subjects };
-    } else if (validated.subject) {
-      whereClause.subject = validated.subject;
-    }
+    // ─── MOCK EXAM ───
+    if (mode === "MOCK_EXAM") {
+      if (requestedSubjects && requestedSubjects.length === 4) {
+        finalSubjects = requestedSubjects;
+      } else {
+        return NextResponse.json(
+          { error: "Select exactly 4 subjects for mock exam" },
+          { status: 400 }
+        );
+      }
 
-    // Fetch questions with stratified sampling by difficulty
-    const totalNeeded = validated.questionCount;
-    const easyCount = Math.round(totalNeeded * 0.3);
-    const mediumCount = Math.round(totalNeeded * 0.5);
-    const hardCount = totalNeeded - easyCount - mediumCount;
+      totalTime = 120; // 2 hours
 
-    const [easyQs, mediumQs, hardQs]: { id: string }[][] = await Promise.all([
-      db.question.findMany({
-        where: { ...whereClause, difficulty: "EASY" },
-        select: { id: true },
-        take: easyCount * 3,
-      }),
-      db.question.findMany({
-        where: { ...whereClause, difficulty: "MEDIUM" },
-        select: { id: true },
-        take: mediumCount * 3,
-      }),
-      db.question.findMany({
-        where: { ...whereClause, difficulty: "HARD" },
-        select: { id: true },
-        take: hardCount * 3,
-      }),
-    ]);
+      for (let i = 0; i < finalSubjects.length; i++) {
+        const subj = finalSubjects[i];
+        const needed = i === 0 ? 60 : 40; // English gets 60, others 40
 
-    const selectedIds = [
-      ...shuffle(easyQs).slice(0, easyCount),
-      ...shuffle(mediumQs).slice(0, mediumCount),
-      ...shuffle(hardQs).slice(0, hardCount),
-    ].map((q) => q.id);
+        const allSubjQs = await db.question.findMany({
+          where: { subject: subj as JambSubject, isActive: true },
+          select: {
+            id: true,
+            subject: true,
+            topicId: true,
+            body: true,
+            imageUrl: true,
+            optionA: true,
+            optionB: true,
+            optionC: true,
+            optionD: true,
+            difficulty: true,
+          },
+        });
 
-    const finalIds = shuffle(selectedIds);
+        // Weight questions: prioritize weak topics + unseen topics
+        const scored = allSubjQs.map((q) => {
+          const topicData = abilityMap.get(q.topicId);
+          let weight = 1;
+          if (topicData) {
+            weight += (100 - topicData.ability) / 50;
+            weight += (1 - topicData.confidence) * 0.5;
+          } else {
+            weight += 1.5;
+          }
+          weight *= 0.7 + Math.random() * 0.6;
+          return { ...q, weight };
+        });
 
-    if (finalIds.length === 0) {
+        // JAMB difficulty distribution: ~30% easy, 50% medium, 20% hard
+        const byDiff: Record<string, any[]> = {
+          EASY: [],
+          MEDIUM: [],
+          HARD: [],
+        };
+        for (const q of scored.sort((a, b) => b.weight - a.weight)) {
+          const d = q.difficulty as string;
+          if (byDiff[d]) byDiff[d].push(q);
+        }
+
+        const targetEasy = Math.round(needed * 0.3);
+        const targetHard = Math.round(needed * 0.2);
+        const targetMedium = needed - targetEasy - targetHard;
+
+        const selected = [
+          ...byDiff.EASY.slice(0, targetEasy),
+          ...byDiff.MEDIUM.slice(0, targetMedium),
+          ...byDiff.HARD.slice(0, targetHard),
+        ];
+
+        // Fill if not enough
+        if (selected.length < needed) {
+          const selectedIds = new Set(selected.map((s) => s.id));
+          const remaining = scored.filter((q) => !selectedIds.has(q.id));
+          selected.push(...remaining.slice(0, needed - selected.length));
+        }
+
+        // Shuffle within subject section
+        questions.push(...selected.sort(() => Math.random() - 0.5));
+      }
+
+      // ─── PRACTICE (untimed, single subject) ───
+    } else if (mode === "PRACTICE") {
+      if (!subject)
+        return NextResponse.json(
+          { error: "Subject required" },
+          { status: 400 }
+        );
+      finalSubjects = [subject];
+      const count = questionCount || 40;
+      totalTime = 0;
+
+      const allQs = await db.question.findMany({
+        where: { subject: subject as JambSubject, isActive: true },
+        select: {
+          id: true,
+          subject: true,
+          topicId: true,
+          body: true,
+          imageUrl: true,
+          optionA: true,
+          optionB: true,
+          optionC: true,
+          optionD: true,
+          difficulty: true,
+        },
+      });
+
+      const scored = allQs.map((q) => {
+        const topicData = abilityMap.get(q.topicId);
+        let weight = 1;
+        if (topicData) {
+          weight += (100 - topicData.ability) / 50;
+          weight += (1 - topicData.confidence) * 0.5;
+        } else {
+          weight += 1.5;
+        }
+        weight *= 0.7 + Math.random() * 0.6;
+        return { ...q, weight };
+      });
+
+      questions = scored
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, count);
+
+      // ─── WEAK TOPIC ───
+    } else if (mode === "WEAK_TOPIC") {
+      if (!subject)
+        return NextResponse.json(
+          { error: "Subject required" },
+          { status: 400 }
+        );
+      finalSubjects = [subject];
+      totalTime = 0;
+
+      const weakAbilities = abilities
+        .filter((a) => a.confidence >= 0.2)
+        .sort((a, b) => a.ability - b.ability)
+        .slice(0, 10);
+      const weakTopicIds = weakAbilities.map((a) => a.topicId);
+
+      if (weakTopicIds.length > 0) {
+        const fetched = await db.question.findMany({
+          where: { topicId: { in: weakTopicIds }, isActive: true },
+          select: {
+            id: true,
+            subject: true,
+            topicId: true,
+            body: true,
+            imageUrl: true,
+            optionA: true,
+            optionB: true,
+            optionC: true,
+            optionD: true,
+            difficulty: true,
+          },
+        });
+        questions = fetched
+          .sort(() => Math.random() - 0.5)
+          .slice(0, questionCount || 40);
+      }
+    } else {
       return NextResponse.json(
-        { error: "No questions available for this configuration" },
-        { status: 404 }
+        { error: "Invalid mode. Use MOCK_EXAM, PRACTICE, or WEAK_TOPIC." },
+        { status: 400 }
       );
     }
 
-    // Fetch full question data
-    const questions = await db.question.findMany({
-      where: { id: { in: finalIds } },
-      select: {
-        id: true,
-        body: true,
-        imageUrl: true,
-        optionA: true,
-        optionB: true,
-        optionC: true,
-        optionD: true,
-        subject: true,
-        difficulty: true,
-        topic: { select: { id: true, name: true } },
-      },
+    if (questions.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No questions available for the selected subjects. Add questions first.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Deduplicate question IDs (safety)
+    const seen = new Set<string>();
+    questions = questions.filter((q) => {
+      if (seen.has(q.id)) return false;
+      seen.add(q.id);
+      return true;
     });
 
-    // Sort by the shuffled order
-    const orderMap = new Map(finalIds.map((id, i) => [id, i]));
-    questions.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    // Build sections for mock exam
+    const sections =
+      mode === "MOCK_EXAM"
+        ? (() => {
+            let idx = 0;
+            return finalSubjects.map((subj, i) => {
+              const subjQuestions = questions.filter(
+                (q: any) => q.subject === subj
+              );
+              const qCount = subjQuestions.length;
+              const section = {
+                subject: subj,
+                label: subj
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c: string) => c.toUpperCase()),
+                questionCount: qCount,
+                startIndex: idx,
+              };
+              idx += qCount;
+              return section;
+            });
+          })()
+        : [];
 
-    // Create test session
+    // Create test session (Prisma 7: use connect for relations)
     const testSession = await db.testSession.create({
       data: {
-        userId: session.user.id,
-        mode: validated.mode,
-        subject: validated.subject as any,
-        subjects: (validated.subjects as any) || [],
-        totalQuestions: finalIds.length,
-        timeLimit,
-        difficultyProfile: {
-          easy: easyCount,
-          medium: mediumCount,
-          hard: hardCount,
-        },
+        user: { connect: { id: userId } },
+        mode: mode as TestMode,
+        subject:
+          mode === "MOCK_EXAM"
+            ? null
+            : (finalSubjects[0] as JambSubject),
+        subjects:
+          mode === "MOCK_EXAM"
+            ? (finalSubjects as JambSubject[])
+            : [],
+        totalQuestions: questions.length,
+        timeLimit: totalTime > 0 ? totalTime * 60 : 0,
+        status: "IN_PROGRESS",
       },
     });
 
     return NextResponse.json({
       sessionId: testSession.id,
-      questions,
-      timeLimit,
-      totalQuestions: finalIds.length,
-      mode: validated.mode,
+      mode,
+      totalTime,
+      adaptive: true,
+      subjects: finalSubjects,
+      sections,
+      questions: questions.map((q: any, i: number) => ({
+        id: q.id,
+        index: i,
+        subject: q.subject,
+        topicId: q.topicId,
+        body: q.body,
+        imageUrl: q.imageUrl,
+        optionA: q.optionA,
+        optionB: q.optionB,
+        optionC: q.optionC,
+        optionD: q.optionD,
+        difficulty: q.difficulty,
+      })),
     });
-  } catch (error: any) {
-    if (error.name === "ZodError") {
-      return NextResponse.json({ error: "Invalid input", details: error.errors }, { status: 400 });
-    }
+  } catch (error) {
     console.error("Start test error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong" },
+      { status: 500 }
+    );
   }
 }

@@ -240,7 +240,7 @@ export function ResultsView({ result, sessionId }: ResultsViewProps) {
             className="text-xs"
             style={{ color: "var(--color-text-muted)" }}
           >
-            PrepGenius · Scores are estimates based on practice performance
+            JAMB OS · Scores are estimates based on practice performance
           </p>
           <div
             className="mt-2 flex items-center justify-center gap-4 text-xs"
