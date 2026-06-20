@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -8,11 +9,12 @@ import {
   Flame, Calendar, Crown, GraduationCap, Gift, Settings, User,
   TrendingUp, MessageCircle, Sparkles, Play, Clock, Compass,
   ArrowUpRight, Loader2, RotateCcw, FileText, Shield, Building2,
-  ClipboardList, Users, Home, Award, Heart, Menu, X, Activity,
+  ClipboardList, Users, Home, Award, Heart, Menu, X,
 } from "lucide-react";
 import { Footer } from "@/components/ui/footer";
 import { AdaptiveInsights } from "@/components/dashboard/adaptive-insights";
 import { ScoreHistory } from "@/components/dashboard/score-history";
+import { OnboardingWalkthrough } from "@/components/dashboard/onboarding-walkthrough";
 
 interface QuickStats {
   predictedScore: number;
@@ -42,31 +44,28 @@ interface TrajectoryData {
   subjectBreakdown: Array<{ subject: string; accuracy: number; gap: number; weakTopics: string[] }>;
 }
 
-// ─── Recent Activity types ───
-type ActivityType =
-  | "practice" | "diagnostic" | "challenge" | "note" | "tutor" | "achievement" | "streak";
+type ActivityType = "practice" | "diagnostic" | "challenge" | "note" | "tutor" | "achievement" | "streak";
 
 interface ActivityItem {
   id: string;
   type: ActivityType;
   title: string;
   detail?: string;
-  createdAt: string; // ISO string
-  href?: string;     // optional explicit destination
+  createdAt: string;
+  href?: string;
   score?: number;
 }
 
 const ACTIVITY_CONFIG: Record<ActivityType, { icon: typeof BookOpen; color: string; bg: string; href: string }> = {
-  practice:    { icon: BookOpen,      color: "#22c55e", bg: "#f0fdf4", href: "/practice" },
-  diagnostic:  { icon: Brain,         color: "#3b82f6", bg: "#eff6ff", href: "/diagnostic" },
-  challenge:   { icon: Play,          color: "#22c55e", bg: "#f0fdf4", href: "/challenge" },
-  note:        { icon: FileText,      color: "#3b82f6", bg: "#eff6ff", href: "/notes" },
-  tutor:       { icon: MessageCircle, color: "#8b5cf6", bg: "#f5f3ff", href: "/tutor" },
+  practice:    { icon: BookOpen,      color: "#555", bg: "#f5f5f5", href: "/practice" },
+  diagnostic:  { icon: Brain,         color: "#555", bg: "#f5f5f5", href: "/diagnostic" },
+  challenge:   { icon: Play,          color: "#555", bg: "#f5f5f5", href: "/challenge" },
+  note:        { icon: FileText,      color: "#555", bg: "#f5f5f5", href: "/notes" },
+  tutor:       { icon: MessageCircle, color: "#555", bg: "#f5f5f5", href: "/tutor" },
   achievement: { icon: Trophy,        color: "#f59e0b", bg: "#fffbeb", href: "/rewards" },
   streak:      { icon: Flame,         color: "#f59e0b", bg: "#fffbeb", href: "/dashboard" },
 };
 
-// relative time, no em dashes
 function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
@@ -81,11 +80,8 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ─── Skeleton primitives ───
 function Bar({ w = "100%", h = 12, r = 6 }: { w?: string | number; h?: number; r?: number }) {
-  return (
-    <div className="animate-pulse" style={{ width: w, height: h, borderRadius: r, background: "#eef0f1" }} />
-  );
+  return <div className="animate-pulse" style={{ width: w, height: h, borderRadius: r, background: "#eef0f1" }} />;
 }
 
 function SectionSkeleton({ lines = 3 }: { lines?: number }) {
@@ -114,9 +110,7 @@ function HeroSkeleton() {
         <div className="animate-pulse shrink-0" style={{ width: 88, height: 88, borderRadius: "9999px", background: "#eef0f1" }} />
         <div className="flex-1 space-y-3">
           <Bar w={120} h={10} />
-          <div className="flex gap-5">
-            <Bar w={48} h={24} /><Bar w={48} h={24} /><Bar w={48} h={24} />
-          </div>
+          <div className="flex gap-5"><Bar w={48} h={24} /><Bar w={48} h={24} /><Bar w={48} h={24} /></div>
           <Bar w="100%" h={6} />
         </div>
       </div>
@@ -125,7 +119,6 @@ function HeroSkeleton() {
   );
 }
 
-// ─── Recent Activity (clickable) ───
 function RecentActivity() {
   const router = useRouter();
   const [items, setItems] = useState<ActivityItem[] | null>(null);
@@ -133,7 +126,6 @@ function RecentActivity() {
 
   useEffect(() => {
     let active = true;
-    // NOTE: adjust this endpoint to your real route + response shape.
     fetch("/api/activity/recent")
       .then((r) => r.json())
       .then((d) => { if (active) setItems(Array.isArray(d) ? d : d?.activities ?? []); })
@@ -145,12 +137,8 @@ function RecentActivity() {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid #eee" }}>
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
-        <p className="text-[0.5625rem] font-semibold uppercase tracking-widest" style={{ color: "#999" }}>
-          Recent Activity
-        </p>
-        <button onClick={() => router.push("/analytics")} className="text-[0.625rem] font-semibold" style={{ color: "#22c55e" }}>
-          View all
-        </button>
+        <p className="text-[0.5625rem] font-semibold uppercase tracking-widest" style={{ color: "#999" }}>Recent Activity</p>
+        <button onClick={() => router.push("/analytics")} className="text-[0.625rem] font-semibold" style={{ color: "#111" }}>View all</button>
       </div>
 
       {loading && (
@@ -168,11 +156,10 @@ function RecentActivity() {
       )}
 
       {!loading && items && items.length === 0 && (
-        // direct-response empty state: specificity + loss aversion + identity
         <button onClick={() => router.push("/practice")} className="w-full text-left px-5 pb-5 pt-1">
           <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: "#fafafa", border: "1px solid #f0f0f0" }}>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f0fdf4" }}>
-              <Play className="h-4 w-4" style={{ color: "#22c55e" }} />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f5f5f5" }}>
+              <Play className="h-4 w-4" style={{ color: "#333" }} />
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold" style={{ color: "#111" }}>Your activity starts here</p>
@@ -180,7 +167,7 @@ function RecentActivity() {
                 Students who finish one session in their first week score 40+ points higher. Take session one now.
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#22c55e" }} />
+            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "#bbb" }} />
           </div>
         </button>
       )}
@@ -192,31 +179,22 @@ function RecentActivity() {
             const Icon = cfg.icon;
             const dest = item.href ?? cfg.href;
             return (
-              <button
-                key={item.id}
-                onClick={() => router.push(dest)}
+              <button key={item.id} onClick={() => router.push(dest)}
                 className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors"
                 style={{ borderTop: i > 0 ? "1px solid #f5f5f5" : "none" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#fafafa"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              >
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: cfg.bg }}>
                   <Icon className="h-4 w-4" style={{ color: cfg.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate" style={{ color: "#333" }}>{item.title}</p>
-                  {item.detail && (
-                    <p className="text-[0.625rem] mt-0.5 truncate" style={{ color: "#999" }}>{item.detail}</p>
-                  )}
+                  {item.detail && <p className="text-[0.625rem] mt-0.5 truncate" style={{ color: "#999" }}>{item.detail}</p>}
                 </div>
                 {typeof item.score === "number" && (
-                  <span className="text-xs font-bold shrink-0" style={{ fontFamily: "var(--font-mono)", color: "#111" }}>
-                    {item.score}
-                  </span>
+                  <span className="text-xs font-bold shrink-0" style={{ fontFamily: "var(--font-mono)", color: "#111" }}>{item.score}</span>
                 )}
-                <span className="text-[0.5625rem] shrink-0 w-12 text-right" style={{ color: "#bbb" }}>
-                  {timeAgo(item.createdAt)}
-                </span>
+                <span className="text-[0.5625rem] shrink-0 w-12 text-right" style={{ color: "#bbb" }}>{timeAgo(item.createdAt)}</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: "#ddd" }} />
               </button>
             );
@@ -231,11 +209,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const { data: session } = useSession();
 
-  // Decoupled state: analytics drives hasData + score; xp fills in independently.
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [xp, setXp] = useState<any | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
-
   const [showMobileNav, setShowMobileNav] = useState(false);
 
   const [simAdjustments, setSimAdjustments] = useState<Record<string, number>>({});
@@ -248,30 +224,22 @@ export default function DashboardPage() {
   const [showTraj, setShowTraj] = useState(false);
   const [trajTarget, setTrajTarget] = useState(300);
 
-  // Fire both fetches independently. Score card no longer waits on gamification,
-  // and the data sections mount as soon as hasData is known, fetching in parallel.
   useEffect(() => {
     let active = true;
-
     fetch("/api/analytics/diagnostic")
       .then((r) => r.json())
       .then((d) => { if (active) setAnalytics(d); })
       .catch(() => { if (active) setAnalytics({ hasData: false }); })
       .finally(() => { if (active) setAnalyticsLoading(false); });
-
     fetch("/api/gamification/profile")
       .then((r) => r.json())
       .then((d) => { if (active) setXp(d); })
       .catch(() => {});
-
     return () => { active = false; };
   }, []);
 
-  // Set trajectory target once analytics arrives.
   useEffect(() => {
-    if (analytics?.hasData && analytics.overview?.targetScore) {
-      setTrajTarget(analytics.overview.targetScore);
-    }
+    if (analytics?.hasData && analytics.overview?.targetScore) setTrajTarget(analytics.overview.targetScore);
   }, [analytics]);
 
   const hasData = !!analytics?.hasData;
@@ -292,8 +260,9 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const getScoreColor = (s: number) => s >= 280 ? "#22c55e" : s >= 220 ? "#f59e0b" : "#ef4444";
-  const getAccColor = (a: number) => a >= 70 ? "#22c55e" : a >= 50 ? "#f59e0b" : "#ef4444";
+  // Score color only for data viz (score ring, progress bars)
+  const scoreColor = (s: number) => s >= 280 ? "#22c55e" : s >= 220 ? "#f59e0b" : "#ef4444";
+  const accColor = (a: number) => a >= 70 ? "#22c55e" : a >= 50 ? "#f59e0b" : "#ef4444";
   const fmt = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   const runSim = useCallback(async (adj: Record<string, number>) => {
@@ -346,6 +315,9 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#fafafa" }}>
+      {/* Onboarding: shows once, never again */}
+      <OnboardingWalkthrough />
+
       {/* ═══ Top Bar ═══ */}
       <header className="sticky top-0 z-40" style={{ background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #eee" }}>
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
@@ -355,7 +327,7 @@ export default function DashboardPage() {
             </button>
             <div className="flex items-center gap-0.5">
               <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#111" }}>Jamb</span>
-              <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#22c55e" }}>OS</span>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#111", fontWeight: 700 }}>OS</span>
             </div>
           </div>
 
@@ -377,9 +349,9 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-2">
             {stats.totalXP > 0 && (
-              <button onClick={() => router.push("/rewards")} className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ background: "#f0fdf4", border: "1px solid #dcfce7" }}>
-                <Zap className="h-3 w-3" style={{ color: "#22c55e" }} />
-                <span className="text-[0.625rem] font-semibold" style={{ fontFamily: "var(--font-mono)", color: "#22c55e" }}>{stats.totalXP.toLocaleString()}</span>
+              <button onClick={() => router.push("/rewards")} className="flex items-center gap-1 rounded-full px-2.5 py-1" style={{ background: "#f5f5f5", border: "1px solid #eee" }}>
+                <Zap className="h-3 w-3" style={{ color: "#f59e0b" }} />
+                <span className="text-[0.625rem] font-semibold" style={{ fontFamily: "var(--font-mono)", color: "#333" }}>{stats.totalXP.toLocaleString()}</span>
               </button>
             )}
             <button onClick={() => router.push("/settings")} className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg" style={{ color: "#999" }}>
@@ -387,7 +359,7 @@ export default function DashboardPage() {
             </button>
             <button onClick={() => router.push("/settings")}>
               {userImage ? <img src={userImage} alt="" className="h-8 w-8 rounded-full object-cover" style={{ border: "2px solid #eee" }} referrerPolicy="no-referrer" />
-                : <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold" style={{ background: "#f0fdf4", color: "#22c55e" }}>{userInitial}</div>}
+                : <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold" style={{ background: "#f5f5f5", color: "#333" }}>{userInitial}</div>}
             </button>
           </div>
         </div>
@@ -401,7 +373,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid #eee" }}>
               <div className="flex items-center gap-0.5">
                 <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#111" }}>Jamb</span>
-                <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#22c55e" }}>OS</span>
+                <span style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", color: "#111", fontWeight: 700 }}>OS</span>
               </div>
               <button onClick={() => setShowMobileNav(false)} className="h-8 w-8 flex items-center justify-center rounded-lg" style={{ color: "#999" }}>
                 <X className="h-5 w-5" />
@@ -455,7 +427,6 @@ export default function DashboardPage() {
           {greeting}, <span style={{ color: "#111", fontWeight: 600 }}>{firstName}</span>
         </p>
 
-        {/* Hero: skeleton while analytics loads, then score card or diagnostic CTA */}
         {analyticsLoading ? (
           <HeroSkeleton />
         ) : hasData ? (
@@ -465,7 +436,7 @@ export default function DashboardPage() {
                 const size = 88; const r = (size - 10) / 2; const circ = 2 * Math.PI * r;
                 const pct = Math.min((stats.predictedScore / 400) * 100, 100);
                 const offset = circ - (pct / 100) * circ;
-                const color = getScoreColor(stats.predictedScore);
+                const color = scoreColor(stats.predictedScore);
                 return (
                   <div className="relative shrink-0">
                     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -484,8 +455,8 @@ export default function DashboardPage() {
                 <p className="text-[0.625rem] uppercase tracking-wider mb-3" style={{ color: "#aaa" }}>Predicted JAMB Score</p>
                 <div className="flex items-center gap-5">
                   {[
-                    { label: "Accuracy", value: `${stats.accuracy}%`, color: getAccColor(stats.accuracy) },
-                    { label: "Streak", value: `${stats.streak} days`, color: "#f59e0b" },
+                    { label: "Accuracy", value: `${stats.accuracy}%`, color: accColor(stats.accuracy) },
+                    { label: "Streak", value: `${stats.streak}d`, color: stats.streak > 0 ? "#f59e0b" : "#ccc" },
                     { label: "Level", value: `${stats.level}`, color: "#8b5cf6" },
                   ].map(({ label, value, color }, i) => (
                     <div key={label} className="flex items-center gap-5">
@@ -500,12 +471,12 @@ export default function DashboardPage() {
                 <div className="mt-3">
                   <div className="flex justify-between text-[0.5625rem] mb-1">
                     <span style={{ color: "#bbb" }}>Target: {stats.targetScore}</span>
-                    <span style={{ color: getScoreColor(stats.predictedScore) }}>
-                      {stats.predictedScore >= stats.targetScore ? "On track" : `${stats.targetScore - stats.predictedScore} points to go`}
+                    <span style={{ color: scoreColor(stats.predictedScore) }}>
+                      {stats.predictedScore >= stats.targetScore ? "On track" : `${stats.targetScore - stats.predictedScore} to go`}
                     </span>
                   </div>
                   <div style={{ height: "4px", borderRadius: "9999px", background: "#f3f3f3" }}>
-                    <div style={{ width: `${Math.min((stats.predictedScore / stats.targetScore) * 100, 100)}%`, height: "100%", borderRadius: "9999px", background: getScoreColor(stats.predictedScore), transition: "width 1s" }} />
+                    <div style={{ width: `${Math.min((stats.predictedScore / stats.targetScore) * 100, 100)}%`, height: "100%", borderRadius: "9999px", background: scoreColor(stats.predictedScore), transition: "width 1s" }} />
                   </div>
                 </div>
               </div>
@@ -515,7 +486,7 @@ export default function DashboardPage() {
               style={{ background: "#111" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1a1a1a"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#111"; }}>
-              <Play className="h-5 w-5 mb-3" style={{ color: "#22c55e" }} />
+              <Play className="h-5 w-5 mb-3" style={{ color: "#fff" }} />
               <div>
                 <p className="text-sm font-semibold" style={{ color: "#fff" }}>Daily Challenge</p>
                 <p className="text-[0.625rem] mt-0.5" style={{ color: "#888" }}>7 questions. Compete nationally.</p>
@@ -524,17 +495,16 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (
-          // No data: direct-response framing (loss aversion + specificity)
           <button onClick={() => router.push("/diagnostic")} className="w-full rounded-2xl p-6 mb-6 text-left" style={{ background: "#fff", border: "1px solid #eee" }}>
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f0fdf4" }}>
-                <Brain className="h-6 w-6" style={{ color: "#22c55e" }} />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f5f5f5" }}>
+                <Brain className="h-6 w-6" style={{ color: "#333" }} />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "#111" }}>See your real JAMB score before exam day decides it for you</p>
                 <p className="text-xs mt-0.5" style={{ color: "#777" }}>40 questions, 30 minutes. We map every weak topic so you stop guessing what to study.</p>
               </div>
-              <ArrowUpRight className="h-5 w-5 shrink-0" style={{ color: "#22c55e" }} />
+              <ArrowUpRight className="h-5 w-5 shrink-0" style={{ color: "#333" }} />
             </div>
           </button>
         )}
@@ -544,15 +514,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 mb-6">
             <button onClick={() => { setShowSim(!showSim); if (!showSim && !simResult) runSim({}); setShowTraj(false); }}
               className="rounded-2xl p-4 text-left transition-all"
-              style={{ background: showSim ? "#f0fdf4" : "#fff", border: `1px solid ${showSim ? "#bbf7d0" : "#eee"}` }}>
-              <TrendingUp className="h-4 w-4 mb-2" style={{ color: "#22c55e" }} />
+              style={{ background: showSim ? "#f5f5f5" : "#fff", border: `1px solid ${showSim ? "#ddd" : "#eee"}` }}>
+              <TrendingUp className="h-4 w-4 mb-2" style={{ color: "#333" }} />
               <p className="text-sm font-semibold" style={{ color: "#111" }}>What If?</p>
               <p className="text-[0.625rem]" style={{ color: "#999" }}>Simulate score changes</p>
             </button>
             <button onClick={() => { setShowTraj(!showTraj); if (!showTraj && !trajData) runTraj(); setShowSim(false); }}
               className="rounded-2xl p-4 text-left transition-all"
-              style={{ background: showTraj ? "#fffbeb" : "#fff", border: `1px solid ${showTraj ? "#fde68a" : "#eee"}` }}>
-              <Target className="h-4 w-4 mb-2" style={{ color: "#f59e0b" }} />
+              style={{ background: showTraj ? "#f5f5f5" : "#fff", border: `1px solid ${showTraj ? "#ddd" : "#eee"}` }}>
+              <Target className="h-4 w-4 mb-2" style={{ color: "#333" }} />
               <p className="text-sm font-semibold" style={{ color: "#111" }}>Road to {trajTarget}+</p>
               <p className="text-[0.625rem]" style={{ color: "#999" }}>Weekly roadmap</p>
             </button>
@@ -563,11 +533,11 @@ export default function DashboardPage() {
         {showSim && (
           <div className="rounded-2xl mb-6 p-5" style={{ background: "#fff", border: "1px solid #eee" }}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>Score Simulator</p>
+              <p className="text-xs font-semibold" style={{ color: "#111" }}>Score Simulator</p>
               <button onClick={() => { setSimAdjustments({}); runSim({}); }} className="flex items-center gap-1 text-[0.625rem]" style={{ color: "#999" }}><RotateCcw className="h-3 w-3" /> Reset</button>
             </div>
             {simLoading && !simResult ? (
-              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "#22c55e" }} /></div>
+              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "#888" }} /></div>
             ) : simResult && (
               <>
                 <div className="flex items-center justify-center gap-6 mb-5">
@@ -575,10 +545,10 @@ export default function DashboardPage() {
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Current</p>
                     <p style={{ fontFamily: "var(--font-display)", fontSize: "2rem", lineHeight: 1, color: "#ccc" }}>{simResult.currentPredicted}</p>
                   </div>
-                  {simResult.totalImprovement > 0 && <p className="text-sm font-bold" style={{ color: "#22c55e" }}>+{simResult.totalImprovement}</p>}
+                  {simResult.totalImprovement > 0 && <p className="text-sm font-bold" style={{ color: scoreColor(simResult.adjustedPredicted) }}>+{simResult.totalImprovement}</p>}
                   <div className="text-center">
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Projected</p>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "2rem", lineHeight: 1, color: getScoreColor(simResult.adjustedPredicted) }}>{simResult.adjustedPredicted}</p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "2rem", lineHeight: 1, color: scoreColor(simResult.adjustedPredicted) }}>{simResult.adjustedPredicted}</p>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -586,13 +556,13 @@ export default function DashboardPage() {
                     <div key={subj.subject}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs" style={{ color: "#555" }}>{fmt(subj.subject)}</span>
-                        <span className="text-xs font-semibold" style={{ fontFamily: "var(--font-mono)", color: (simAdjustments[subj.subject] || 0) > 0 ? "#22c55e" : "#bbb" }}>
+                        <span className="text-xs font-semibold" style={{ fontFamily: "var(--font-mono)", color: (simAdjustments[subj.subject] || 0) > 0 ? "#111" : "#bbb" }}>
                           {subj.currentAccuracy}%{(simAdjustments[subj.subject] || 0) > 0 && ` → ${subj.adjustedAccuracy}%`}
                         </span>
                       </div>
                       <input type="range" min={0} max={Math.min(50, 100 - subj.currentAccuracy)} value={simAdjustments[subj.subject] || 0}
                         onChange={(e) => { const adj = { ...simAdjustments, [subj.subject]: parseInt(e.target.value) }; setSimAdjustments(adj); runSim(adj); }}
-                        className="w-full accent-green-500" style={{ height: "4px" }} />
+                        className="w-full" style={{ height: "4px", accentColor: "#111" }} />
                     </div>
                   ))}
                 </div>
@@ -605,27 +575,27 @@ export default function DashboardPage() {
         {showTraj && (
           <div className="rounded-2xl mb-6 p-5" style={{ background: "#fff", border: "1px solid #eee" }}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-semibold" style={{ color: "#f59e0b" }}>Road to {trajTarget}+</p>
+              <p className="text-xs font-semibold" style={{ color: "#111" }}>Road to {trajTarget}+</p>
               <div className="flex gap-1">
                 {[250, 280, 300, 320, 350].map((t) => (
                   <button key={t} onClick={() => { setTrajTarget(t); setTimeout(runTraj, 50); }}
-                    className="rounded-md px-2 py-0.5 text-[0.5625rem] font-semibold" style={{ background: trajTarget === t ? "#fef3c7" : "transparent", color: trajTarget === t ? "#f59e0b" : "#ccc" }}>{t}</button>
+                    className="rounded-md px-2 py-0.5 text-[0.5625rem] font-semibold" style={{ background: trajTarget === t ? "#111" : "transparent", color: trajTarget === t ? "#fff" : "#ccc" }}>{t}</button>
                 ))}
               </div>
             </div>
             {trajLoading && !trajData ? (
-              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "#f59e0b" }} /></div>
+              <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "#888" }} /></div>
             ) : trajData && (
               <>
                 <div className="flex items-center justify-center gap-6 mb-4">
                   <div className="text-center">
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Now</p>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: getScoreColor(trajData.currentScore) }}>{trajData.currentScore}</p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: scoreColor(trajData.currentScore) }}>{trajData.currentScore}</p>
                   </div>
-                  <TrendingUp className="h-4 w-4" style={{ color: "#f59e0b" }} />
+                  <TrendingUp className="h-4 w-4" style={{ color: "#888" }} />
                   <div className="text-center">
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Target</p>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "#22c55e" }}>{trajData.targetScore}</p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "#111" }}>{trajData.targetScore}</p>
                   </div>
                 </div>
                 <p className="text-xs text-center mb-4" style={{ color: "#999" }}>
@@ -645,60 +615,50 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {trajData.milestones.slice(0, 3).map((m) => (
                     <div key={m.week} className="flex items-center gap-2 rounded-lg p-2" style={{ background: "#fafafa" }}>
-                      <span className="flex h-6 w-6 items-center justify-center rounded text-[0.5625rem] font-bold" style={{ fontFamily: "var(--font-mono)", background: "#fef3c7", color: "#f59e0b" }}>W{m.week}</span>
+                      <span className="flex h-6 w-6 items-center justify-center rounded text-[0.5625rem] font-bold" style={{ fontFamily: "var(--font-mono)", background: "#f5f5f5", color: "#555" }}>W{m.week}</span>
                       <span className="text-xs flex-1" style={{ color: "#666" }}>{fmt(m.focus)} focus</span>
-                      <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: getScoreColor(m.expectedScore) }}>{m.expectedScore}</span>
+                      <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: scoreColor(m.expectedScore) }}>{m.expectedScore}</span>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => router.push("/trajectory")} className="text-xs font-semibold mt-3 w-full text-center" style={{ color: "#f59e0b" }}>View full roadmap →</button>
+                <button onClick={() => router.push("/trajectory")} className="text-xs font-semibold mt-3 w-full text-center" style={{ color: "#111" }}>View full roadmap →</button>
               </>
             )}
           </div>
         )}
 
-        {/* ═══ Progress + Knowledge Map + Recent Activity ═══
-            Mount as soon as analytics resolves so they fetch in parallel.
-            While analytics loads, show skeletons so the layout is instant. */}
         {analyticsLoading ? (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-              <SectionSkeleton lines={3} />
-              <SectionSkeleton lines={3} />
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6"><SectionSkeleton lines={3} /><SectionSkeleton lines={3} /></div>
             <div className="mb-6"><SectionSkeleton lines={3} /></div>
           </>
         ) : hasData ? (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-              {/* Knowledge map */}
               <AdaptiveInsights />
-              {/* Progress */}
               <ScoreHistory />
             </div>
-            <div className="mb-6">
-              <RecentActivity />
-            </div>
+            <div className="mb-6"><RecentActivity /></div>
           </>
         ) : null}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[
-            { icon: BookOpen, title: "Practice", sub: "CBT Simulator", href: "/practice", accent: "#22c55e", bg: "#f0fdf4" },
-            { icon: Calendar, title: "Study Plan", sub: "Today's tasks", href: "/study", accent: "#f59e0b", bg: "#fffbeb" },
-            { icon: MessageCircle, title: "AI Tutor", sub: "Ask anything", href: "/tutor", accent: "#8b5cf6", bg: "#f5f3ff" },
-            { icon: FileText, title: "Smart Notes", sub: "AI study notes", href: "/notes", accent: "#3b82f6", bg: "#eff6ff" },
-          ].map(({ icon: Icon, title, sub, href, accent, bg }) => (
+            { icon: BookOpen, title: "Practice", sub: "CBT Simulator", href: "/practice", iconColor: "#111" },
+            { icon: Calendar, title: "Study Plan", sub: "Today's tasks", href: "/study", iconColor: "#555" },
+            { icon: MessageCircle, title: "AI Tutor", sub: "Ask anything", href: "/tutor", iconColor: "#555" },
+            { icon: FileText, title: "Smart Notes", sub: "AI study notes", href: "/notes", iconColor: "#555" },
+          ].map(({ icon: Icon, title, sub, href, iconColor }) => (
             <button key={href} onClick={() => router.push(href)} className="rounded-2xl p-4 text-left transition-all"
               style={{ background: "#fff", border: "1px solid #eee" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = bg; (e.currentTarget as HTMLElement).style.borderColor = `${accent}30`; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#fff"; (e.currentTarget as HTMLElement).style.borderColor = "#eee"; }}>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl mb-3" style={{ background: bg }}>
-                <Icon className="h-4 w-4" style={{ color: accent }} />
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f5f5f5"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl mb-3" style={{ background: "#f5f5f5" }}>
+                <Icon className="h-4 w-4" style={{ color: iconColor }} />
               </div>
               <p className="text-sm font-semibold" style={{ color: "#111" }}>{title}</p>
-              <p className="text-[0.625rem] mt-0.5" style={{ color: "#aaa" }}>{sub}</p>
+              <p className="text-[0.625rem] mt-0.5" style={{ color: "#888" }}>{sub}</p>
             </button>
           ))}
         </div>
@@ -711,7 +671,7 @@ export default function DashboardPage() {
                 { icon: BarChart3, title: "Analytics", href: "/analytics", color: "#8b5cf6" },
                 { icon: TrendingUp, title: "Rankings", href: "/rankings", color: "#3b82f6" },
                 { icon: GraduationCap, title: "Reality Mode", href: "/reality", color: "#f59e0b" },
-                { icon: Compass, title: "Career Discovery", href: "/career", color: "#22c55e" },
+                { icon: Compass, title: "Career Discovery", href: "/career", color: "#555" },
                 { icon: Brain, title: "Diagnostic Test", href: "/diagnostic", color: "#3b82f6" },
               ]},
               { label: "AFTER JAMB", items: [
@@ -748,8 +708,8 @@ export default function DashboardPage() {
                 { icon: Crown, title: "Subscription", href: "/subscription", color: "#f59e0b" },
               ]},
               { label: "COMMUNITY", items: [
-                { icon: Users, title: "Find a Tutor", href: "/tutors", color: "#f59e0b" },
-                { icon: Shield, title: "Ambassador", href: "/ambassador", color: "#22c55e" },
+                { icon: Users, title: "Find a Tutor", href: "/tutors", color: "#555" },
+                { icon: Shield, title: "Ambassador", href: "/ambassador", color: "#555" },
                 { icon: Building2, title: "Tutorial Center", href: "/center", color: "#3b82f6" },
               ]},
             ].map(({ label, items }) => (
@@ -774,7 +734,7 @@ export default function DashboardPage() {
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
               {[
                 { icon: Clock, title: "Revision Timetable", href: "/study/schedule", color: "#3b82f6" },
-                { icon: Sparkles, title: "Learn Feed", href: "/feed", color: "#22c55e" },
+                { icon: Sparkles, title: "Learn Feed", href: "/feed", color: "#555" },
               ].map(({ icon: Icon, title, href, color }) => (
                 <button key={href} onClick={() => router.push(href)} className="flex w-full items-center gap-3 py-2 text-left">
                   <Icon className="h-4 w-4" style={{ color }} />
@@ -802,8 +762,8 @@ export default function DashboardPage() {
             return (
               <button key={href} onClick={() => router.push(href)}
                 className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors"
-                style={{ color: isActive ? "#22c55e" : "#bbb" }}>
-                <Icon className="h-5 w-5" />
+                style={{ color: isActive ? "#111" : "#bbb" }}>
+                <Icon className="h-5 w-5" style={{ strokeWidth: isActive ? 2.5 : 1.5 }} />
                 <span className="text-[0.5rem] font-medium">{label}</span>
               </button>
             );

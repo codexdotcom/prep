@@ -24,7 +24,7 @@ export const JAMB_SUBJECTS = [
   { value: "GEOGRAPHY", label: "Geography", category: "social_science" },
   { value: "AGRICULTURAL_SCIENCE", label: "Agricultural Science", category: "science" },
   { value: "HISTORY", label: "History", category: "arts" },
-  { value: "CIVIC_EDUCATION", label: "Civic Education", category: "social_science" },
+
   { value: "COMPUTER_STUDIES", label: "Computer Studies", category: "science" },
   { value: "FINE_ARTS", label: "Fine Arts", category: "arts" },
   { value: "MUSIC", label: "Music", category: "arts" },

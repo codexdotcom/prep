@@ -4,9 +4,53 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, BookOpen, Zap, Loader2, ChevronRight, Upload, X,
-  FileText, CheckCircle2, Sparkles, Clock, Eye, Bookmark,
+  FileText, CheckCircle2, Sparkles, Eye, Bookmark,
+  Headphones, PenLine, Gamepad2, ImageIcon,
 } from "lucide-react";
-import { JAMB_SUBJECTS } from "@/lib/data/nigerian-states";
+
+const SUBJECTS = [
+  { value: "USE_OF_ENGLISH", label: "Use of English" },
+  { value: "MATHEMATICS", label: "Mathematics" },
+  { value: "PHYSICS", label: "Physics" },
+  { value: "CHEMISTRY", label: "Chemistry" },
+  { value: "BIOLOGY", label: "Biology" },
+  { value: "LITERATURE", label: "Literature in English" },
+  { value: "GOVERNMENT", label: "Government" },
+  { value: "ECONOMICS", label: "Economics" },
+  { value: "COMMERCE", label: "Commerce" },
+  { value: "ACCOUNTING", label: "Accounting" },
+  { value: "CRS", label: "CRS" },
+  { value: "IRS", label: "IRS" },
+  { value: "GEOGRAPHY", label: "Geography" },
+  { value: "AGRICULTURAL_SCIENCE", label: "Agricultural Science" },
+];
+
+const LEARNING_STYLES = [
+  {
+    id: "visual",
+    label: "Visual",
+    desc: "Diagrams, charts, and mind maps",
+    icon: ImageIcon,
+  },
+  {
+    id: "auditory",
+    label: "Audio",
+    desc: "Listen and learn with AI narration",
+    icon: Headphones,
+  },
+  {
+    id: "reading",
+    label: "Read/Write",
+    desc: "Detailed text with summaries",
+    icon: PenLine,
+  },
+  {
+    id: "kinesthetic",
+    label: "Interactive",
+    desc: "Practice questions woven into notes",
+    icon: Gamepad2,
+  },
+];
 
 interface TopicOption {
   id: string;
@@ -22,6 +66,7 @@ interface NoteItem {
   summary: string | null;
   questionCount: number;
   difficulty: string;
+  learningStyle?: string;
   views: number;
   viewed: boolean;
   createdAt: string;
@@ -31,34 +76,29 @@ interface UploadedFile {
   id: string;
   filename: string;
   processed: boolean;
-  hasText: boolean;
-  textPreview: string | null;
 }
+
+const fmt = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function NotesPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"browse" | "saved" | "generate">("browse");
 
-  // Browse
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [browseSubject, setBrowseSubject] = useState("");
   const [browseLoading, setBrowseLoading] = useState(false);
 
-  // Saved
   const [savedNotes, setSavedNotes] = useState<NoteItem[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
 
-  // Generate
   const [genSubject, setGenSubject] = useState("");
   const [genTopicId, setGenTopicId] = useState("");
+  const [genStyle, setGenStyle] = useState("reading");
   const [topics, setTopics] = useState<TopicOption[]>([]);
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generatedId, setGeneratedId] = useState<string | null>(null);
-
-  const formatSubject = (s: string) =>
-    s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   const fetchNotes = useCallback(async () => {
     setBrowseLoading(true);
@@ -85,12 +125,9 @@ export default function NotesPage() {
 
   useEffect(() => {
     if (!genSubject) { setTopics([]); setGenTopicId(""); return; }
-    async function load() {
-      const res = await fetch(`/api/admin/topics?subject=${genSubject}`);
-      const data = await res.json();
-      setTopics(data || []);
-    }
-    load();
+    fetch(`/api/admin/topics?subject=${genSubject}`)
+      .then((r) => r.json()).then((d) => setTopics(d || []))
+      .catch(() => setTopics([]));
     setGenTopicId("");
   }, [genSubject]);
 
@@ -119,7 +156,12 @@ export default function NotesPage() {
       const res = await fetch("/api/notes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: genSubject, topicId: genTopicId, uploadIds: uploads.map((u) => u.id) }),
+        body: JSON.stringify({
+          subject: genSubject,
+          topicId: genTopicId,
+          learningStyle: genStyle,
+          uploadIds: uploads.map((u) => u.id),
+        }),
       });
       const data = await res.json();
       if (res.ok) { setGeneratedId(data.id); fetchNotes(); }
@@ -128,76 +170,72 @@ export default function NotesPage() {
     finally { setGenerating(false); }
   };
 
-  const selectedTopic = topics.find((t) => t.id === genTopicId);
+  const styleIcon = (style?: string) => {
+    const cfg = LEARNING_STYLES.find((s) => s.id === style);
+    return cfg ? cfg.icon : PenLine;
+  };
 
-  const getDiffColor = (d: string) => d === "HARD" ? "var(--color-danger-400)" : d === "EASY" ? "var(--color-accent-green)" : "var(--color-warning-400)";
-
-  const NoteCard = ({ note }: { note: NoteItem }) => (
-    <button
-      onClick={() => router.push(`/notes/${note.id}`)}
-      className="w-full text-left rounded-2xl p-4 transition-all group"
-      style={{ background: "var(--color-surface-card)", border: "1px solid var(--color-surface-border)" }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(34,197,94,0.25)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-surface-border)"; (e.currentTarget as HTMLElement).style.transform = "none"; }}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "rgba(34,197,94,0.06)" }}
-        >
-          <FileText className="h-5 w-5" style={{ color: "var(--color-accent-green)" }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            {note.topicName}
-          </p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[0.5625rem] rounded-full px-2 py-0.5"
-              style={{ background: "rgba(34,197,94,0.08)", color: "var(--color-accent-green)", border: "1px solid rgba(34,197,94,0.15)" }}>
-              {formatSubject(note.subject)}
-            </span>
-            <span className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>
-              {note.questionCount} questions analyzed
-            </span>
+  const NoteCard = ({ note }: { note: NoteItem }) => {
+    const StyleIcon = styleIcon(note.learningStyle);
+    return (
+      <button onClick={() => router.push(`/notes/${note.id}`)}
+        className="w-full text-left rounded-xl p-4 transition-all group"
+        style={{ background: "#fff", border: "1px solid #eee" }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#ccc"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "#eee"; }}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "#f5f5f5" }}>
+            <StyleIcon className="h-5 w-5" style={{ color: "#555" }} />
           </div>
-          {note.summary && (
-            <p className="text-xs mt-2 line-clamp-2 leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
-              {note.summary}
-            </p>
-          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: "#111" }}>{note.topicName}</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-xs" style={{ color: "#888" }}>{fmt(note.subject)}</span>
+              <span className="text-xs" style={{ color: "#ccc" }}>·</span>
+              <span className="text-xs" style={{ color: "#888" }}>{note.questionCount} questions analyzed</span>
+              {note.learningStyle && (
+                <>
+                  <span className="text-xs" style={{ color: "#ccc" }}>·</span>
+                  <span className="text-xs capitalize" style={{ color: "#aaa" }}>{note.learningStyle}</span>
+                </>
+              )}
+            </div>
+            {note.summary && (
+              <p className="text-xs mt-2 line-clamp-2 leading-relaxed" style={{ color: "#777" }}>{note.summary}</p>
+            )}
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "#bbb" }} />
         </div>
-        <ChevronRight className="h-4 w-4 shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--color-accent-green)" }} />
-      </div>
-    </button>
-  );
+      </button>
+    );
+  };
 
   return (
-    <div className="min-h-screen pb-12" style={{ background: "var(--color-surface)" }}>
-      <header className="sticky top-0 z-30" style={{ background: "var(--color-surface-card)", borderBottom: "1px solid var(--color-surface-border)", backdropFilter: "blur(12px)" }}>
+    <div className="min-h-screen pb-12" style={{ background: "#fafafa" }}>
+      <header className="sticky top-0 z-30" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #eee" }}>
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <button onClick={() => router.push("/dashboard")} className="btn-ghost"><ArrowLeft className="h-4 w-4" /></button>
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4" style={{ color: "var(--color-accent-green)" }} />
-            <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Smart Notes</span>
-          </div>
-          <div />
+          <button onClick={() => router.push("/dashboard")} className="flex items-center gap-1.5 text-sm" style={{ color: "#666" }}>
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-semibold" style={{ color: "#111" }}>Smart Notes</span>
+          <div className="w-8" />
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl px-4 pt-5">
         {/* Tabs */}
-        <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: "var(--color-surface-light)" }}>
+        <div className="flex gap-1 mb-5 p-0.5 rounded-xl" style={{ background: "#f0f0f0" }}>
           {[
             { key: "browse" as const, label: "All Notes", icon: BookOpen },
             { key: "saved" as const, label: "Saved", icon: Bookmark },
             { key: "generate" as const, label: "Generate", icon: Sparkles },
           ].map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setTab(key)}
-              className="flex items-center gap-1.5 flex-1 justify-center rounded-lg py-2 text-xs font-semibold transition-all"
+              className="flex items-center gap-1.5 flex-1 justify-center rounded-lg py-2.5 text-xs font-semibold transition-all"
               style={{
-                background: tab === key ? "var(--color-surface-card)" : "transparent",
-                color: tab === key ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
-                boxShadow: tab === key ? "var(--shadow-card)" : "none",
+                background: tab === key ? "#fff" : "transparent",
+                color: tab === key ? "#111" : "#999",
+                boxShadow: tab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
               }}>
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -209,24 +247,25 @@ export default function NotesPage() {
         {tab === "browse" && (
           <>
             <select value={browseSubject} onChange={(e) => setBrowseSubject(e.target.value)}
-              className="input-field mb-4" style={{ appearance: "none" }}>
+              className="w-full rounded-xl py-3 px-4 text-sm mb-4"
+              style={{ background: "#fff", border: "1px solid #eee", color: "#333", outline: "none", appearance: "none" }}>
               <option value="">All subjects</option>
-              {JAMB_SUBJECTS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+              {SUBJECTS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
             </select>
 
             {browseLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent-green)" }} /></div>
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "#888" }} /></div>
             ) : notes.length === 0 ? (
-              <div className="card text-center py-12">
-                <BookOpen className="mx-auto mb-3 h-6 w-6" style={{ color: "var(--color-text-muted)" }} />
-                <p className="text-sm mb-1" style={{ color: "var(--color-text-primary)" }}>No notes yet</p>
-                <p className="text-xs mb-4" style={{ color: "var(--color-text-tertiary)" }}>Generate your first AI study note</p>
-                <button onClick={() => setTab("generate")} className="btn-primary" style={{ fontSize: "0.75rem" }}>
-                  <Sparkles className="h-3.5 w-3.5" /> Generate Notes
+              <div className="rounded-xl p-8 text-center" style={{ background: "#fff", border: "1px solid #eee" }}>
+                <BookOpen className="mx-auto mb-3 h-6 w-6" style={{ color: "#ddd" }} />
+                <p className="text-sm font-semibold mb-1" style={{ color: "#111" }}>No notes yet</p>
+                <p className="text-xs mb-4" style={{ color: "#888" }}>Generate your first AI study note</p>
+                <button onClick={() => setTab("generate")} className="rounded-xl px-5 py-2.5 text-sm font-semibold" style={{ background: "#111", color: "#fff" }}>
+                  Generate Notes
                 </button>
               </div>
             ) : (
-              <div className="space-y-2.5">{notes.map((n) => <NoteCard key={n.id} note={n} />)}</div>
+              <div className="space-y-2">{notes.map((n) => <NoteCard key={n.id} note={n} />)}</div>
             )}
           </>
         )}
@@ -235,15 +274,15 @@ export default function NotesPage() {
         {tab === "saved" && (
           <>
             {savedLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent-green)" }} /></div>
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "#888" }} /></div>
             ) : savedNotes.length === 0 ? (
-              <div className="card text-center py-12">
-                <Bookmark className="mx-auto mb-3 h-6 w-6" style={{ color: "var(--color-text-muted)" }} />
-                <p className="text-sm mb-1" style={{ color: "var(--color-text-primary)" }}>No saved notes</p>
-                <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>Bookmark notes while reading to find them here</p>
+              <div className="rounded-xl p-8 text-center" style={{ background: "#fff", border: "1px solid #eee" }}>
+                <Bookmark className="mx-auto mb-3 h-6 w-6" style={{ color: "#ddd" }} />
+                <p className="text-sm font-semibold mb-1" style={{ color: "#111" }}>No saved notes</p>
+                <p className="text-xs" style={{ color: "#888" }}>Bookmark notes while reading to find them here</p>
               </div>
             ) : (
-              <div className="space-y-2.5">{savedNotes.map((n) => <NoteCard key={n.id} note={n} />)}</div>
+              <div className="space-y-2">{savedNotes.map((n) => <NoteCard key={n.id} note={n} />)}</div>
             )}
           </>
         )}
@@ -251,63 +290,111 @@ export default function NotesPage() {
         {/* ═══ GENERATE ═══ */}
         {tab === "generate" && (
           <>
-            <div className="card p-5 mb-4">
-              <h2 className="text-sm font-semibold mb-1" style={{ color: "var(--color-text-primary)" }}>Generate AI Study Notes</h2>
-              <p className="text-xs mb-4" style={{ color: "var(--color-text-tertiary)" }}>
-                AI analyzes your question bank to create notes covering only what JAMB tests.
+            <div className="rounded-xl p-5 mb-4" style={{ background: "#fff", border: "1px solid #eee" }}>
+              <h2 className="text-sm font-bold mb-1" style={{ color: "#111" }}>Generate AI Study Notes</h2>
+              <p className="text-xs mb-5" style={{ color: "#888" }}>
+                The AI analyzes real JAMB questions to create notes covering only what the exam actually tests. Choose how you learn best.
               </p>
 
-              <div className="mb-3">
-                <label className="label">Subject</label>
-                <select value={genSubject} onChange={(e) => setGenSubject(e.target.value)} className="input-field" style={{ appearance: "none" }}>
+              {/* Subject */}
+              <div className="mb-4">
+                <p className="text-xs font-semibold mb-2" style={{ color: "#333" }}>Subject</p>
+                <select value={genSubject} onChange={(e) => setGenSubject(e.target.value)}
+                  className="w-full rounded-xl py-3 px-4 text-sm"
+                  style={{ background: "#fafafa", border: "1px solid #eee", color: "#333", outline: "none", appearance: "none" }}>
                   <option value="">Select subject</option>
-                  {JAMB_SUBJECTS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+                  {SUBJECTS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
                 </select>
               </div>
 
-              <div className="mb-4">
-                <label className="label">Topic</label>
-                <select value={genTopicId} onChange={(e) => setGenTopicId(e.target.value)} className="input-field"
-                  style={{ appearance: "none", opacity: genSubject ? 1 : 0.5 }} disabled={!genSubject}>
+              {/* Topic */}
+              <div className="mb-5">
+                <p className="text-xs font-semibold mb-2" style={{ color: "#333" }}>Topic</p>
+                <select value={genTopicId} onChange={(e) => setGenTopicId(e.target.value)}
+                  className="w-full rounded-xl py-3 px-4 text-sm"
+                  style={{ background: "#fafafa", border: "1px solid #eee", color: "#333", outline: "none", appearance: "none", opacity: genSubject ? 1 : 0.5 }}
+                  disabled={!genSubject}>
                   <option value="">Select topic</option>
                   {topics.map((t) => (<option key={t.id} value={t.id}>{t.name} ({t._count.questions} questions)</option>))}
                 </select>
               </div>
 
+              {/* Learning style */}
+              <div className="mb-5">
+                <p className="text-xs font-semibold mb-2" style={{ color: "#333" }}>How do you learn best?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {LEARNING_STYLES.map((style) => {
+                    const Icon = style.icon;
+                    const isSelected = genStyle === style.id;
+                    return (
+                      <button key={style.id} onClick={() => setGenStyle(style.id)}
+                        className="flex items-start gap-3 rounded-xl p-3 text-left transition-all"
+                        style={{ background: isSelected ? "#111" : "#fafafa", border: `1.5px solid ${isSelected ? "#111" : "#eee"}` }}>
+                        <Icon className="h-4 w-4 shrink-0 mt-0.5" style={{ color: isSelected ? "#fff" : "#888" }} />
+                        <div>
+                          <p className="text-xs font-bold" style={{ color: isSelected ? "#fff" : "#333" }}>{style.label}</p>
+                          <p className="text-[0.625rem] mt-0.5 leading-relaxed" style={{ color: isSelected ? "#999" : "#aaa" }}>{style.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Uploads */}
-              <div className="mb-4">
-                <label className="label">Reference Materials (optional)</label>
+              <div className="mb-5">
+                <p className="text-xs font-semibold mb-2" style={{ color: "#333" }}>Reference materials <span style={{ color: "#bbb" }}>(optional)</span></p>
                 {uploads.length > 0 && (
                   <div className="space-y-1.5 mb-2">
                     {uploads.map((u) => (
-                      <div key={u.id} className="flex items-center gap-2 rounded-lg p-2" style={{ background: "var(--color-surface-light)", border: "1px solid var(--color-surface-border)" }}>
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: u.processed ? "var(--color-accent-green)" : "var(--color-warning-400)" }} />
-                        <span className="text-xs flex-1 truncate" style={{ color: "var(--color-text-secondary)" }}>{u.filename}</span>
-                        <button onClick={() => setUploads((p) => p.filter((f) => f.id !== u.id))} className="btn-ghost" style={{ padding: "2px" }}><X className="h-3 w-3" /></button>
+                      <div key={u.id} className="flex items-center gap-2 rounded-lg p-2.5" style={{ background: "#fafafa", border: "1px solid #eee" }}>
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: u.processed ? "#22c55e" : "#f59e0b" }} />
+                        <span className="text-xs flex-1 truncate" style={{ color: "#555" }}>{u.filename}</span>
+                        <button onClick={() => setUploads((p) => p.filter((f) => f.id !== u.id))} style={{ color: "#bbb" }}><X className="h-3 w-3" /></button>
                       </div>
                     ))}
                   </div>
                 )}
-                <label className="flex items-center justify-center gap-2 rounded-lg py-4 cursor-pointer transition-all"
-                  style={{ background: "var(--color-surface-light)", border: "2px dashed var(--color-surface-border)", color: "var(--color-text-tertiary)" }}>
+                <label className="flex items-center justify-center gap-2 rounded-xl py-4 cursor-pointer transition-all"
+                  style={{ background: "#fafafa", border: "2px dashed #ddd", color: "#999" }}>
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   <span className="text-xs">{uploading ? "Uploading..." : "Upload image, PDF, or text file"}</span>
                   <input type="file" accept="image/*,.pdf,.txt" onChange={handleUpload} className="hidden" disabled={uploading || !genSubject} />
                 </label>
               </div>
 
-              <button onClick={handleGenerate} disabled={generating || !genSubject || !genTopicId} className="btn-primary w-full"
-                style={{ padding: "0.75rem", opacity: (!genSubject || !genTopicId) ? 0.4 : 1 }}>
-                {generating ? (<><Loader2 className="h-4 w-4 animate-spin" />Generating...</>) : (<><Sparkles className="h-4 w-4" />Generate Notes</>)}
+              <button onClick={handleGenerate} disabled={generating || !genSubject || !genTopicId}
+                className="w-full rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                style={{ background: "#111", color: "#fff", opacity: (!genSubject || !genTopicId) ? 0.4 : 1 }}>
+                {generating ? (<><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>) : (<><Sparkles className="h-4 w-4" /> Generate {LEARNING_STYLES.find((s) => s.id === genStyle)?.label} Notes</>)}
               </button>
             </div>
 
+            {/* What each style includes */}
+            <div className="rounded-xl p-4 mb-4" style={{ background: "#fff", border: "1px solid #eee" }}>
+              <p className="text-xs font-bold mb-3" style={{ color: "#333" }}>What each style generates</p>
+              <div className="space-y-3">
+                {[
+                  { style: "Visual", items: "Diagrams, flowcharts, comparison tables, labeled illustrations, mind maps. Best for spatial thinkers who remember what things look like." },
+                  { style: "Audio", items: "AI-narrated explanations you can listen to while commuting or relaxing. Includes key phrase repetition and mnemonic audio cues." },
+                  { style: "Read/Write", items: "Detailed written notes with summaries, key definitions, structured outlines, and fill-in-the-blank exercises." },
+                  { style: "Interactive", items: "Notes with embedded practice questions after each section. Solve as you learn. The AI adjusts difficulty based on your answers." },
+                ].map((s) => (
+                  <div key={s.style}>
+                    <p className="text-xs font-semibold" style={{ color: "#222" }}>{s.style}</p>
+                    <p className="text-xs leading-relaxed" style={{ color: "#888" }}>{s.items}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {generatedId && (
-              <div className="card p-5 text-center" style={{ borderColor: "rgba(34,197,94,0.2)" }}>
-                <CheckCircle2 className="mx-auto mb-3 h-8 w-8" style={{ color: "var(--color-accent-green)" }} />
-                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Notes Generated</p>
-                <button onClick={() => router.push(`/notes/${generatedId}`)} className="btn-primary mt-3">
-                  <BookOpen className="h-4 w-4" /> Read Notes
+              <div className="rounded-xl p-5 text-center" style={{ background: "#fff", border: "1px solid #eee" }}>
+                <CheckCircle2 className="mx-auto mb-3 h-8 w-8" style={{ color: "#22c55e" }} />
+                <p className="text-sm font-bold" style={{ color: "#111" }}>Notes generated</p>
+                <button onClick={() => router.push(`/notes/${generatedId}`)}
+                  className="mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold" style={{ background: "#111", color: "#fff" }}>
+                  Read Notes
                 </button>
               </div>
             )}
