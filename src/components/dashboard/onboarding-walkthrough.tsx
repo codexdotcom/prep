@@ -17,17 +17,12 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  {
-    title: "Take a diagnostic test",
-    body: "40 questions across your JAMB subjects. The AI uses your answers to map every strong and weak topic, then predicts your current JAMB score. This is your starting point.",
-    icon: Brain,
-    action: { label: "Take diagnostic", href: "/diagnostic" },
-  },
+ 
   {
     title: "Practice smarter, not harder",
     body: "Four practice modes. Quick Practice for casual reps. Full Mock Exam for real JAMB simulation. Topic Drill for targeted mastery. Weak Areas for the topics costing you the most points. The AI adapts difficulty as you go.",
     icon: BookOpen,
-    action: { label: "Start practicing", href: "/practice" },
+    action: { label: " ", href: "/practice" },
   },
   {
     title: "Track your progress",
@@ -38,13 +33,19 @@ const STEPS: Step[] = [
     title: "Get AI-powered study notes",
     body: "Smart Notes analyzes real JAMB questions to generate study material covering only what the exam actually tests. Choose your learning style: visual diagrams, audio explanations, written summaries, or interactive practice.",
     icon: Sparkles,
-    action: { label: "Browse notes", href: "/notes" },
+    action: { label: " ", href: "/notes" },
   },
   {
     title: "Ask the AI Tutor anything",
     body: "Stuck on a concept? The tutor explains it in plain language, walks you through examples, and connects it to how JAMB tests it. Available 24/7, no appointment needed.",
     icon: MessageCircle,
-    action: { label: "Ask a question", href: "/tutor" },
+    action: { label: "", href: "/tutor" },
+  },
+   {
+    title: "Take a diagnostic test",
+    body: "40 questions across your JAMB subjects. The AI uses your answers to map every strong and weak topic, then predicts your current JAMB score. This is your starting point.",
+    icon: Brain,
+    action: { label: "Take diagnostic", href: "/diagnostic" },
   },
 ];
 

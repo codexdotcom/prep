@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       create: { parentEmail, studentId: session.user.id, accessCode: code },
     });
 
-    return NextResponse.json({ code: link.accessCode, shareUrl: `https://prepgenius.ng/parent?code=${link.accessCode}` });
+    return NextResponse.json({ code: link.accessCode, shareUrl: `https://jambos.ng/parent?code=${link.accessCode}` });
   } catch (error) {
     console.error("Parent link error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

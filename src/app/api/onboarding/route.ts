@@ -85,6 +85,7 @@ export async function POST(req: Request) {
       update: {
         firstName: personal.firstName,
         lastName: personal.lastName,
+         whatsappNumber: personal.whatsappNumber || null,
         dateOfBirth: personal.dateOfBirth
           ? new Date(personal.dateOfBirth)
           : undefined,
@@ -108,6 +109,7 @@ export async function POST(req: Request) {
         userId,
         firstName: personal.firstName,
         lastName: personal.lastName,
+         whatsappNumber: personal.whatsappNumber || null,
         dateOfBirth: personal.dateOfBirth
           ? new Date(personal.dateOfBirth)
           : undefined,

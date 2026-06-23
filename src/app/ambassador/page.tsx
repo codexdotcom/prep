@@ -440,66 +440,8 @@ export default function AmbassadorPage() {
               </>
             )}
 
-            {/* ═══ LEADERBOARD TAB ═══ */}
-            {tab === "leaderboard" && (
-              <>
-                <div className="flex gap-1 mb-4 p-0.5 rounded-lg" style={{ background: "var(--color-surface-light)" }}>
-                  {[
-                    { key: "all_time" as const, label: "All Time" },
-                    { key: "monthly" as const, label: "This Month" },
-                  ].map(({ key, label }) => (
-                    <button key={key} onClick={() => setLbType(key)} className="flex-1 rounded-md py-1.5 text-xs font-semibold transition-all"
-                      style={{ background: lbType === key ? "var(--color-surface-card)" : "transparent", color: lbType === key ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                {myRank && (
-                  <div className="card p-3 mb-4 flex items-center justify-between" style={{ borderColor: "rgba(34,197,94,0.2)" }}>
-                    <span className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>Your rank</span>
-                    <span className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-green)" }}>#{myRank}</span>
-                  </div>
-                )}
-
-                {lbLoading ? (
-                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent-green)" }} /></div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {leaderboard.map((entry) => {
-                      const tier = getTier(entry.tier);
-                      return (
-                        <div key={entry.rank} className="card p-3 flex items-center gap-3"
-                          style={{ borderColor: entry.isMe ? "rgba(34,197,94,0.2)" : undefined, background: entry.isMe ? "rgba(34,197,94,0.02)" : undefined }}>
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-                            style={{
-                              fontFamily: "var(--font-mono)",
-                              background: entry.rank <= 3 ? `${["#FFD700", "#C0C0C0", "#CD7F32"][entry.rank - 1]}20` : "var(--color-surface-light)",
-                              color: entry.rank <= 3 ? ["#FFD700", "#C0C0C0", "#CD7F32"][entry.rank - 1] : "var(--color-text-muted)",
-                            }}>
-                            {entry.rank}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate" style={{ color: entry.isMe ? "var(--color-accent-green)" : "var(--color-text-primary)" }}>
-                              {entry.displayName} {entry.isMe && "(You)"}
-                            </p>
-                            <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>
-                              {entry.schoolName} · {entry.schoolState}
-                              {entry.isSchoolCaptain && " · Captain"}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color: tier.color }}>{entry.referrals}</p>
-                            <p className="text-[0.5rem]" style={{ color: "var(--color-text-muted)" }}>{formatNaira(entry.earnings)}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-
+            
+        
             {/* ═══ TIERS TAB ═══ */}
             {tab === "tiers" && (
               <div className="space-y-3">

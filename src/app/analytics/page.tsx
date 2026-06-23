@@ -14,11 +14,9 @@ import { TopicHeatmap } from "@/components/analytics/topic-heatmap";
 import { ScoreTrendChart } from "@/components/analytics/score-trend-chart";
 import { DifficultyBreakdown } from "@/components/analytics/difficulty-breakdown";
 
-// ─── helpers ───
-const scoreColor = (s: number) => (s >= 280 ? "#22c55e" : s >= 220 ? "#f59e0b" : "#ef4444");
-const accColor = (a: number) => (a >= 70 ? "#22c55e" : a >= 50 ? "#f59e0b" : "#ef4444");
+const scoreColor = (s: number) => (s >= 280 ? "#16a34a" : s >= 220 ? "#d97706" : "#dc2626");
+const accColor = (a: number) => (a >= 70 ? "#16a34a" : a >= 50 ? "#d97706" : "#dc2626");
 
-// direct-response readiness verdict (specificity, identity, loss aversion)
 function readiness(score: number, target: number) {
   const gap = Math.max(target - score, 0);
   if (score >= 300)
@@ -46,47 +44,38 @@ function readiness(score: number, target: number) {
   };
 }
 
-// ─── light section header ───
-function SectionHead({ icon: Icon, title, color = "#22c55e" }: { icon: typeof Brain; title: string; color?: string }) {
+function SectionHead({ icon: Icon, title }: { icon: typeof Brain; title: string }) {
   return (
     <div className="mb-3 flex items-center gap-2">
-      <Icon className="h-4 w-4" style={{ color }} />
+      <Icon className="h-4 w-4" style={{ color: "#555" }} />
       <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", color: "#111" }}>{title}</h2>
     </div>
   );
 }
 
-// ─── collapsible section ───
 function Collapsible({
   icon: Icon, title, defaultOpen = true, children,
 }: { icon: typeof Brain; title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: "1px solid #eee" }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left"
-      >
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between px-5 py-4 text-left">
         <span className="flex items-center gap-2">
-          <Icon className="h-4 w-4" style={{ color: "#22c55e" }} />
+          <Icon className="h-4 w-4" style={{ color: "#555" }} />
           <span style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", color: "#111" }}>{title}</span>
         </span>
-        <ChevronDown
-          className="h-4 w-4 transition-transform"
-          style={{ color: "#999", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-        />
+        <ChevronDown className="h-4 w-4 transition-transform" style={{ color: "#999", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
       </button>
       {open && <div className="px-5 pb-5 pt-1">{children}</div>}
     </div>
   );
 }
 
-// ─── light stat card ───
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: typeof Brain; label: string; value: string | number; sub?: string; color: string }) {
   return (
     <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg mb-3" style={{ background: `${color}14` }}>
-        <Icon className="h-4 w-4" style={{ color }} />
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg mb-3" style={{ background: "#f5f5f5" }}>
+        <Icon className="h-4 w-4" style={{ color: "#555" }} />
       </div>
       <p style={{ fontFamily: "var(--font-mono)", fontSize: "1.375rem", color: "#111", lineHeight: 1 }}>{value}</p>
       <p className="text-xs mt-1.5" style={{ color: "#555" }}>{label}</p>
@@ -103,7 +92,7 @@ export default function AnalyticsPage() {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ background: "#fafafa" }}>
         <div className="text-center">
-          <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin" style={{ color: "#22c55e" }} />
+          <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin" style={{ color: "#555" }} />
           <p className="text-sm" style={{ color: "#555" }}>Crunching your numbers...</p>
         </div>
       </div>
@@ -114,7 +103,7 @@ export default function AnalyticsPage() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "#fafafa" }}>
         <div className="rounded-2xl p-8 max-w-md text-center" style={{ background: "#fff", border: "1px solid #eee" }}>
-          <p className="mb-4 text-sm" style={{ color: "#ef4444" }}>{error || "Could not load analytics"}</p>
+          <p className="mb-4 text-sm" style={{ color: "#dc2626" }}>{error || "Could not load analytics"}</p>
           <button onClick={() => router.push("/dashboard")} className="rounded-full px-5 py-2.5 text-sm font-medium text-white" style={{ background: "#111" }}>
             Back to Dashboard
           </button>
@@ -127,8 +116,8 @@ export default function AnalyticsPage() {
     return (
       <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "#fafafa" }}>
         <div className="rounded-2xl p-8 max-w-md text-center" style={{ background: "#fff", border: "1px solid #eee" }}>
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "#f0fdf4" }}>
-            <Brain className="h-7 w-7" style={{ color: "#22c55e" }} />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "#f5f5f5" }}>
+            <Brain className="h-7 w-7" style={{ color: "#333" }} />
           </div>
           <h2 className="mb-2" style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", color: "#111" }}>
             Your numbers are one test away
@@ -136,7 +125,7 @@ export default function AnalyticsPage() {
           <p className="mb-6 text-sm" style={{ color: "#777" }}>
             Take one test and we map your predicted score, your weakest topics, and the exact points you are leaving on the table.
           </p>
-          <button onClick={() => router.push("/practice")} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white" style={{ background: "#22c55e" }}>
+          <button onClick={() => router.push("/practice")} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white" style={{ background: "#111" }}>
             <Zap className="h-4 w-4" /> Take a Test
           </button>
         </div>
@@ -160,17 +149,17 @@ export default function AnalyticsPage() {
             <span className="hidden sm:inline">Dashboard</span>
           </button>
           <div className="flex items-center gap-2">
-            <Brain className="h-4 w-4" style={{ color: "#22c55e" }} />
+            <BarChart3 className="h-4 w-4" style={{ color: "#555" }} />
             <span className="text-sm font-semibold" style={{ color: "#111" }}>Analytics</span>
           </div>
-          <button onClick={() => router.push("/practice")} className="rounded-full px-4 py-1.5 text-xs font-medium text-white" style={{ background: "#22c55e" }}>
+          <button onClick={() => router.push("/practice")} className="rounded-full px-4 py-1.5 text-xs font-medium text-white" style={{ background: "#111" }}>
             Practice
           </button>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 pt-6 space-y-6">
-        {/* ── Readiness hero: score ring + verdict ── */}
+        {/* Readiness hero */}
         <div className="rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-6" style={{ background: "#fff", border: "1px solid #eee" }}>
           {(() => {
             const size = 132; const r = (size - 14) / 2; const circ = 2 * Math.PI * r;
@@ -193,7 +182,7 @@ export default function AnalyticsPage() {
           })()}
 
           <div className="flex-1 min-w-0 text-center sm:text-left">
-            <span className="inline-block rounded-full px-3 py-1 text-[0.625rem] font-semibold mb-2" style={{ background: "#f0fdf4", color: "#16a34a" }}>
+            <span className="inline-block rounded-full px-3 py-1 text-[0.625rem] font-semibold mb-2" style={{ background: "#f5f5f5", color: "#333" }}>
               {verdict.tag}
             </span>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", color: "#111", lineHeight: 1.3 }}>{verdict.title}</h1>
@@ -201,7 +190,7 @@ export default function AnalyticsPage() {
             <div className="mt-4">
               <div className="flex justify-between text-[0.6875rem] mb-1">
                 <span style={{ color: "#999" }}>Target {overview.targetScore}</span>
-                <span style={{ color: scoreColor(overview.predictedJambScore) }}>
+                <span style={{ color: "#555" }}>
                   {gap > 0 ? `${gap} points to go` : "On track"}
                 </span>
               </div>
@@ -212,25 +201,18 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Quick stats ── */}
+        {/* Quick stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard icon={CheckCircle2} label="Accuracy" value={`${overview.overallAccuracy}%`} color={accColor(overview.overallAccuracy)} sub="across all answers" />
-          <StatCard icon={BarChart3} label="Tests taken" value={overview.totalTestsTaken} color="#3b82f6" sub="more tests, sharper prediction" />
-          <StatCard icon={BookOpen} label="Questions done" value={overview.totalQuestionsAttempted} color="#8b5cf6" sub="reps in the bank" />
-          <StatCard
-            icon={AlertTriangle}
-            label="Careless errors"
-            value={`${overview.carelessErrorRate}%`}
-            color={overview.carelessErrorRate > 10 ? "#ef4444" : "#f59e0b"}
-            sub="points you already knew"
-          />
+          <StatCard icon={CheckCircle2} label="Accuracy" value={`${overview.overallAccuracy}%`} color="#555" sub="across all answers" />
+          <StatCard icon={BarChart3} label="Tests taken" value={overview.totalTestsTaken} color="#555" sub="more tests, sharper prediction" />
+          <StatCard icon={BookOpen} label="Questions done" value={overview.totalQuestionsAttempted} color="#555" sub="reps in the bank" />
+          <StatCard icon={AlertTriangle} label="Careless errors" value={`${overview.carelessErrorRate}%`} color="#555" sub="points you already knew" />
         </div>
 
-        {/* ── Your numbers, decoded (NEW insights, ebook framing) ── */}
+        {/* Your numbers, decoded */}
         <div>
           <SectionHead icon={Zap} title="Your numbers, decoded" />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Points to target */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
               <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Distance to target</p>
               <p style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "#111" }}>
@@ -243,10 +225,9 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            {/* Careless errors = free points (loss aversion) */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
               <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Free points on the table</p>
-              <p style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: overview.carelessErrorRate > 10 ? "#ef4444" : "#f59e0b" }}>
+              <p style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "#111" }}>
                 {overview.carelessErrorRate}%
               </p>
               <p className="text-xs mt-1" style={{ color: "#555", lineHeight: 1.5 }}>
@@ -254,7 +235,6 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            {/* Speed */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
               <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Pace per question</p>
               <p style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "#111" }}>{avgSecs}s</p>
@@ -263,7 +243,6 @@ export default function AnalyticsPage() {
               </p>
             </div>
 
-            {/* Best study time */}
             {overview.bestStudyTime && (
               <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
                 <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Your sharpest hours</p>
@@ -274,7 +253,6 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Risk level */}
             {overview.riskLevel && (
               <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
                 <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Readiness risk</p>
@@ -285,7 +263,6 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Consistency */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eee" }}>
               <p className="text-[0.625rem] font-semibold uppercase tracking-wider mb-2" style={{ color: "#999" }}>Consistency</p>
               <p style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "#111" }}>{overview.totalTestsTaken} tests</p>
@@ -296,7 +273,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── What to do next ── */}
+        {/* What to do next */}
         {recommendations.length > 0 && (
           <div>
             <SectionHead icon={Zap} title="What to do next" />
@@ -304,18 +281,18 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* ── Subject performance ── */}
+        {/* Subject performance */}
         <div>
           <SectionHead icon={Target} title="Subject performance" />
           <SubjectCards subjects={data.subjectStats} />
         </div>
 
-        {/* ── Topic breakdown (COLLAPSIBLE) ── */}
+        {/* Topic breakdown */}
         <Collapsible icon={BarChart3} title="Topic breakdown" defaultOpen>
           <TopicHeatmap topics={data.topicStats} />
         </Collapsible>
 
-        {/* ── Trend + difficulty ── */}
+        {/* Trend + difficulty */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <SectionHead icon={TrendingUp} title="Score trend" />
@@ -327,7 +304,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Speed analysis (inline, light) ── */}
+        {/* Speed analysis */}
         <div>
           <SectionHead icon={Clock} title="Speed analysis" />
           <div className="rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4" style={{ background: "#fff", border: "1px solid #eee" }}>
@@ -346,27 +323,27 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── CTA back to practice (identity + momentum) ── */}
+        {/* CTA */}
         <button onClick={() => router.push("/practice")} className="w-full rounded-2xl p-5 flex items-center gap-4 text-left" style={{ background: "#111" }}>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(34,197,94,0.15)" }}>
-            <Flame className="h-5 w-5" style={{ color: "#22c55e" }} />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(255,255,255,0.1)" }}>
+            <Flame className="h-5 w-5" style={{ color: "#fff" }} />
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold" style={{ color: "#fff" }}>Turn these numbers into points</p>
-            <p className="text-[0.6875rem] mt-0.5" style={{ color: "#999" }}>One focused session on your red topics moves the prediction more than an hour of random practice.</p>
+            <p className="text-[0.6875rem] mt-0.5" style={{ color: "#888" }}>One focused session on your red topics moves the prediction more than an hour of random practice.</p>
           </div>
-          <ArrowUpRight className="h-5 w-5 shrink-0" style={{ color: "#22c55e" }} />
+          <ArrowUpRight className="h-5 w-5 shrink-0" style={{ color: "#888" }} />
         </button>
 
         {/* Footer */}
         <footer className="mt-8 pt-6 text-center" style={{ borderTop: "1px solid #eee" }}>
           <div className="flex items-center justify-center gap-0.5 mb-3">
             <span style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", color: "#111" }}>Jamb</span>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", color: "#22c55e" }}>OS</span>
+            <span style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", color: "#111", fontWeight: 700 }}>OS</span>
           </div>
           <div className="flex items-center justify-center gap-3 text-xs" style={{ color: "#999" }}>
             <a href="/privacy" className="hover:underline" style={{ color: "#777" }}>Privacy</a>
-            <span>·</span>
+            <span>-</span>
             <a href="/terms" className="hover:underline" style={{ color: "#777" }}>Terms</a>
           </div>
         </footer>

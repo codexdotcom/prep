@@ -7,6 +7,10 @@ export const personalInfoSchema = z.object({
   gender: z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]).optional(),
   state: z.string().optional(),
   city: z.string().optional(),
+  whatsappNumber: z.string().optional().refine(
+  (val) => !val || /^\+?\d{10,15}$/.test(val.replace(/\s/g, "")),
+  { message: "Enter a valid phone number" }
+),
 });
 
 export const educationSchema = z.object({

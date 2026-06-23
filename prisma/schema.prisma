@@ -109,6 +109,7 @@ model StudentProfile {
   schoolName      String?
   schoolType      SchoolType?
   classLevel      ClassLevel?
+  whatsappNumber    String? 
 
   // JAMB-specific
   examYear        Int
@@ -1052,6 +1053,8 @@ model GeneratedNote {
 
   topic         Topic    @relation(fields: [topicId], references: [id])
   views         NoteView[]
+  learningStyle   String?
+  practiceQuestions Json?
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

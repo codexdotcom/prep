@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 
-interface NoteData {
+interface NoteForPDF {
+  id: string;
   title: string;
   subject: string;
   topicName: string;
@@ -13,448 +14,439 @@ interface NoteData {
   difficulty: string;
 }
 
-// ─── Brand colors ───
-const COLORS = {
-  green: [34, 197, 94] as [number, number, number],
-  darkGreen: [10, 31, 10] as [number, number, number],
-  red: [239, 68, 68] as [number, number, number],
-  amber: [245, 158, 11] as [number, number, number],
-  textPrimary: [17, 24, 39] as [number, number, number],
-  textSecondary: [75, 85, 99] as [number, number, number],
-  textMuted: [156, 163, 175] as [number, number, number],
-  border: [229, 231, 235] as [number, number, number],
-  bgLight: [249, 250, 251] as [number, number, number],
-  white: [255, 255, 255] as [number, number, number],
-  greenBg: [240, 253, 244] as [number, number, number],
-  redBg: [254, 242, 242] as [number, number, number],
-  amberBg: [255, 251, 235] as [number, number, number],
+const BRAND_COLOR: [number, number, number] = [20, 184, 166]; // teal #14b8a6
+
+const SUBJECT_COLORS: Record<string, [number, number, number]> = {
+  MATHEMATICS: [20, 184, 166],
+  PHYSICS: [20, 184, 166],
+  CHEMISTRY: [20, 184, 166],
+  BIOLOGY: [20, 184, 166],
+  USE_OF_ENGLISH: [20, 184, 166],
+  LITERATURE: [20, 184, 166],
+  GOVERNMENT: [20, 184, 166],
+  ECONOMICS: [20, 184, 166],
+  COMMERCE: [20, 184, 166],
+  ACCOUNTING: [20, 184, 166],
+  GEOGRAPHY: [20, 184, 166],
+  AGRICULTURAL_SCIENCE: [20, 184, 166],
+  CRS: [20, 184, 166],
+  IRS: [20, 184, 166],
 };
 
-const PAGE_W = 210; // A4 mm
-const PAGE_H = 297;
-const MARGIN = 20;
-const CONTENT_W = PAGE_W - 2 * MARGIN;
-
-function cleanMath(text: string): string {
-  if (!text) return "";
-  // Display math
-  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => cleanLatex(m));
-  // Inline math
-  text = text.replace(/\$(.+?)\$/g, (_, m) => cleanLatex(m));
-  // Markdown bold/italic
-  text = text.replace(/\*\*(.+?)\*\*/g, "$1");
-  text = text.replace(/\*(.+?)\*/g, "$1");
-  return text;
+function getColor(subject: string): [number, number, number] {
+  return BRAND_COLOR;
 }
 
-function cleanLatex(tex: string): string {
-  let t = tex.trim();
-  t = t.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "($1)/($2)");
-  t = t.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, "$2^(1/$1)");
-  t = t.replace(/\\sqrt\{([^}]*)\}/g, "√($1)");
-  t = t.replace(/\\times/g, "×").replace(/\\div/g, "÷").replace(/\\pm/g, "±");
-  t = t.replace(/\\neq/g, "≠").replace(/\\leq/g, "≤").replace(/\\geq/g, "≥");
-  t = t.replace(/\\approx/g, "≈").replace(/\\infty/g, "∞");
-  t = t.replace(/\\pi/g, "π").replace(/\\theta/g, "θ").replace(/\\alpha/g, "α");
-  t = t.replace(/\\beta/g, "β").replace(/\\gamma/g, "γ").replace(/\\delta/g, "δ");
-  t = t.replace(/\\Delta/g, "Δ").replace(/\\sigma/g, "σ").replace(/\\omega/g, "ω");
-  t = t.replace(/\\lambda/g, "λ").replace(/\\mu/g, "μ").replace(/\\phi/g, "φ");
-  t = t.replace(/\\epsilon/g, "ε").replace(/\\therefore/g, "∴").replace(/\\perp/g, "⊥");
-  t = t.replace(/\\rightarrow/g, "→").replace(/\\leftarrow/g, "←");
-  t = t.replace(/\\sin/g, "sin").replace(/\\cos/g, "cos").replace(/\\tan/g, "tan");
-  t = t.replace(/\\log/g, "log").replace(/\\ln/g, "ln").replace(/\\lim/g, "lim");
-  t = t.replace(/\\sum_\{([^}]*)\}\^\{([^}]*)\}/g, "Σ($1 to $2)");
-  t = t.replace(/\\int_\{([^}]*)\}\^\{([^}]*)\}/g, "∫($1 to $2)");
-  t = t.replace(/\^\{\\circ\}/g, "°");
-  t = t.replace(/\^\{([^}]*)\}/g, "^$1");
-  t = t.replace(/_\{([^}]*)\}/g, "_$1");
-  // Matrices
-  t = t.replace(/\\begin\{pmatrix\}([\s\S]*?)\\end\{pmatrix\}/g, (_, body) => formatMatrix(body, "(", ")"));
-  t = t.replace(/\\begin\{bmatrix\}([\s\S]*?)\\end\{bmatrix\}/g, (_, body) => formatMatrix(body, "[", "]"));
-  t = t.replace(/\\begin\{vmatrix\}([\s\S]*?)\\end\{vmatrix\}/g, (_, body) => formatMatrix(body, "|", "|"));
-  t = t.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (_, body) => {
-    const rows = body.split("\\\\").filter((r: string) => r.trim());
-    return "{ " + rows.map((r: string) => r.replace(/&/g, " ").trim()).join(", ") + " }";
+const fmt = (s: string) =>
+  s
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+function stripEmDashes(text: string): string {
+  return text
+    .replace(/\u2014/g, " - ")
+    .replace(/\u2013/g, " - ")
+    .replace(/—/g, " - ")
+    .replace(/–/g, " - ");
+}
+
+function stripMarkdown(text: string): string {
+  let clean = text;
+  // Remove em dashes
+  clean = stripEmDashes(clean);
+  // Remove LaTeX display math, keep content
+  clean = clean.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => m.trim());
+  // Remove inline LaTeX delimiters
+  clean = clean.replace(/\$(.+?)\$/g, "$1");
+  // Remove code blocks
+  clean = clean.replace(/```[\s\S]*?```/g, "");
+  // Remove [PRACTICE] blocks
+  clean = clean.replace(/\[PRACTICE\][\s\S]*?\[\/PRACTICE\]/g, "");
+  // Remove metadata markers
+  clean = clean.replace(/---[A-Z_]+---[\s\S]*/, "");
+  // Remove markdown formatting
+  clean = clean.replace(/#{1,3}\s/g, "");
+  clean = clean.replace(/\*\*(.+?)\*\*/g, "$1");
+  clean = clean.replace(/\*(.+?)\*/g, "$1");
+  clean = clean.replace(/`([^`]+)`/g, "$1");
+  // Remove table separators
+  clean = clean.replace(/^\|[-:| ]+\|$/gm, "");
+  // Clean pipes from tables
+  clean = clean.replace(/\|/g, "  ");
+  // Clean up whitespace
+  clean = clean.replace(/\n{3,}/g, "\n\n");
+  return clean.trim();
+}
+
+function parseContentSections(
+  content: string
+): Array<{ type: "heading" | "subheading" | "text" | "bullet" | "table"; text: string }> {
+  const lines = content.split("\n");
+  const parts: Array<{ type: "heading" | "subheading" | "text" | "bullet" | "table"; text: string }> = [];
+  let inCodeBlock = false;
+  let inPractice = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) { inCodeBlock = !inCodeBlock; continue; }
+    if (inCodeBlock) continue;
+    if (trimmed === "[PRACTICE]") { inPractice = true; continue; }
+    if (trimmed === "[/PRACTICE]") { inPractice = false; continue; }
+    if (inPractice) continue;
+    if (trimmed.startsWith("---") && trimmed.endsWith("---") && trimmed.length > 6) break; // metadata
+
+    if (trimmed.startsWith("## ")) {
+      parts.push({ type: "heading", text: trimmed.replace(/^##\s+/, "") });
+    } else if (trimmed.startsWith("### ")) {
+      parts.push({ type: "subheading", text: trimmed.replace(/^###\s+/, "") });
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      parts.push({ type: "bullet", text: trimmed.replace(/^[-*]\s+/, "") });
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      parts.push({ type: "bullet", text: trimmed });
+    } else if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      if (!/^[-:| ]+$/.test(trimmed.replace(/\|/g, "").trim())) {
+        const cells = trimmed
+          .slice(1, -1)
+          .split("|")
+          .map((c) => c.trim());
+        parts.push({ type: "table", text: cells.join("    |    ") });
+      }
+    } else if (trimmed.length > 0) {
+      // Strip bold/italic
+      const clean = trimmed
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\*(.+?)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\$(.+?)\$/g, "$1")
+        .replace(/\$\$([\s\S]+?)\$\$/g, "$1");
+      if (clean.length > 0) {
+        parts.push({ type: "text", text: clean });
+      }
+    }
+  }
+
+  return parts;
+}
+
+export function generateNotePDF(note: NoteForPDF) {
+  const pdf = new jsPDF("p", "mm", "a4");
+  const W = 210;
+  const H = 297;
+  const ML = 18; // margin left
+  const MR = 18;
+  const CW = W - ML - MR; // content width
+  const color = getColor(note.subject);
+  const subjectLabel = fmt(note.subject);
+  const dateStr = new Date().toLocaleDateString("en-NG", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
-  t = t.replace(/\\[a-zA-Z]+/g, "");
-  t = t.replace(/[{}]/g, "");
-  t = t.replace(/\\\\/g, ", ");
-  t = t.replace(/\s+/g, " ").trim();
-  return t;
-}
 
-function formatMatrix(body: string, left: string, right: string): string {
-  const rows = body.split("\\\\").filter((r: string) => r.trim());
-  const formatted = rows.map((r: string) => r.split("&").map((c: string) => c.trim()).join("  "));
-  return `${left} ${formatted.join(" ; ")} ${right}`;
-}
-
-export function generateNotePDF(note: NoteData): void {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   let y = 0;
-  let pageNum = 1;
 
-  const addFooter = () => {
-    doc.setDrawColor(...COLORS.border);
-    doc.setLineWidth(0.3);
-    doc.line(MARGIN, PAGE_H - 15, PAGE_W - MARGIN, PAGE_H - 15);
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.textMuted);
-    doc.text("Generated by JambOS — jambos.ng", MARGIN, PAGE_H - 10);
-    doc.text(`Page ${pageNum}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" });
-  };
+  // Strip em dashes from all text content
+  const cleanTitle = stripEmDashes(note.title);
+  const cleanSummary = note.summary ? stripEmDashes(note.summary) : null;
+  const cleanFormulas = note.keyFormulas.map(stripEmDashes);
+  const cleanMistakes = note.commonMistakes.map(stripEmDashes);
+  const cleanTips = note.examTips.map(stripEmDashes);
+  const cleanContent = stripEmDashes(note.content);
 
-  const checkNewPage = (needed: number) => {
-    if (y + needed > PAGE_H - 25) {
+  function checkPage(needed: number) {
+    if (y + needed > H - 20) {
+      // Footer on current page
       addFooter();
-      doc.addPage();
-      pageNum++;
-      y = 15;
+      pdf.addPage();
+      y = 18;
     }
-  };
+  }
 
-  const drawRoundedRect = (
-    x: number, yPos: number, w: number, h: number, r: number,
-    fill: [number, number, number], stroke?: [number, number, number]
-  ) => {
-    doc.setFillColor(...fill);
-    if (stroke) {
-      doc.setDrawColor(...stroke);
-      doc.setLineWidth(0.4);
-      doc.roundedRect(x, yPos, w, h, r, r, "FD");
-    } else {
-      doc.roundedRect(x, yPos, w, h, r, r, "F");
-    }
-  };
+  function addFooter() {
+    const pageNum = pdf.getNumberOfPages();
+    pdf.setFontSize(7);
+    pdf.setTextColor(180, 180, 180);
+    pdf.text(`JambOS Study Notes`, ML, H - 10);
+    pdf.text(`Page ${pageNum}`, W - MR, H - 10, { align: "right" });
+    // Thin line
+    pdf.setDrawColor(230, 230, 230);
+    pdf.setLineWidth(0.3);
+    pdf.line(ML, H - 14, W - MR, H - 14);
+  }
 
-  const wrapText = (text: string, maxWidth: number, fontSize: number): string[] => {
-    doc.setFontSize(fontSize);
-    return doc.splitTextToSize(text, maxWidth) as string[];
-  };
+  // ═══ PAGE 1: COVER HEADER ═══
 
-  const subject = note.subject.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  // Dark header block
+  pdf.setFillColor(26, 26, 46);
+  pdf.rect(0, 0, W, 72, "F");
 
-  // ═══════════════════════════════════
-  // HEADER BANNER
-  // ═══════════════════════════════════
-  drawRoundedRect(MARGIN, 12, CONTENT_W, 40, 4, COLORS.darkGreen);
+  // Accent bar at top
+  pdf.setFillColor(color[0], color[1], color[2]);
+  pdf.rect(0, 0, W, 3, "F");
 
-  // Brand name
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLORS.white);
-  doc.text("Jamb", MARGIN + 12, 29);
-  doc.setTextColor(...COLORS.green);
-  doc.text("OS", MARGIN + 12 + doc.getTextWidth("Jamb"), 29);
-
-  // Tagline
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...COLORS.textMuted);
-  doc.text("AI-Powered JAMB Study Notes", MARGIN + 12, 36);
+  // "JAMBOS" brand
+  pdf.setFontSize(9);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("JAMBOS", ML, 16);
 
   // Subject badge
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLORS.green);
-  doc.text(subject, MARGIN + 12, 46);
+  pdf.setFontSize(7);
+  pdf.setTextColor(color[0], color[1], color[2]);
+  pdf.text(subjectLabel.toUpperCase(), ML, 24);
 
-  y = 60;
+  // Topic name (big title)
+  pdf.setFontSize(22);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  const titleLines = pdf.splitTextToSize(note.topicName, CW);
+  pdf.text(titleLines, ML, 38);
 
-  // ═══════════════════════════════════
-  // TITLE + META
-  // ═══════════════════════════════════
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLORS.textPrimary);
-  const titleLines = wrapText(note.topicName, CONTENT_W, 18);
-  titleLines.forEach((line) => {
-    checkNewPage(8);
-    doc.text(line, MARGIN, y);
-    y += 8;
-  });
+  // Meta line
+  const titleHeight = titleLines.length * 8;
+  pdf.setFontSize(8);
+  pdf.setTextColor(150, 160, 180);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(
+    `JAMB questions analyzed  •  ${dateStr}`,
+    ML,
+    38 + titleHeight + 4
+  );
 
-  y += 1;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...COLORS.textMuted);
-  const meta = `Based on JAMB questions `;
-  doc.text(meta, MARGIN, y);
-  y += 8;
+  y = 80;
 
-  // ═══════════════════════════════════
-  // SUMMARY BOX
-  // ═══════════════════════════════════
-  if (note.summary) {
-    const summaryText = cleanMath(note.summary);
-    const summaryLines = wrapText(summaryText, CONTENT_W - 20, 10);
-    const boxH = summaryLines.length * 5 + 18;
+  // ═══ SUMMARY ═══
+  if (cleanSummary) {
+    // Light accent background
+    pdf.setFillColor(
+      Math.min(color[0] + 180, 250),
+      Math.min(color[1] + 180, 250),
+      Math.min(color[2] + 180, 250)
+    );
+    pdf.roundedRect(ML, y, CW, 0.1, 2, 2, "F"); // measure first
 
-    checkNewPage(boxH + 10);
+    const summaryLines = pdf.splitTextToSize(cleanSummary, CW - 16);
+    const boxH = summaryLines.length * 5 + 14;
 
-    // Label
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...COLORS.green);
-    doc.text("KEY TAKEAWAY", MARGIN, y);
-    y += 4;
+    pdf.setFillColor(
+      Math.min(color[0] + 180, 250),
+      Math.min(color[1] + 180, 250),
+      Math.min(color[2] + 180, 250)
+    );
+    pdf.roundedRect(ML, y, CW, boxH, 3, 3, "F");
 
-    drawRoundedRect(MARGIN, y, CONTENT_W, boxH, 3, COLORS.greenBg, COLORS.green);
+    // Left accent bar
+    pdf.setFillColor(color[0], color[1], color[2]);
+    pdf.rect(ML, y, 2.5, boxH, "F");
 
-    // Green left accent bar
-    doc.setFillColor(...COLORS.green);
-    doc.roundedRect(MARGIN, y, 3, boxH, 1.5, 1.5, "F");
+    // "KEY TAKEAWAY" label
+    pdf.setFontSize(6.5);
+    pdf.setTextColor(color[0], color[1], color[2]);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("KEY TAKEAWAY", ML + 10, y + 7);
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(22, 101, 52); // dark green text
-    let sY = y + 10;
-    summaryLines.forEach((line) => {
-      doc.text(line, MARGIN + 12, sY);
-      sY += 5;
-    });
+    // Summary text
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(80, 80, 80);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(summaryLines, ML + 10, y + 13);
 
-    y += boxH + 6;
+    y += boxH + 8;
   }
 
-  // ═══════════════════════════════════
-  // QUICK REFERENCE BOXES
-  // ═══════════════════════════════════
-  const drawBox = (
-    items: string[],
-    label: string,
-    labelColor: [number, number, number],
-    bgColor: [number, number, number],
-    borderColor: [number, number, number],
-    iconChar: string,
-  ) => {
-    if (items.length === 0) return;
+  // ═══ QUICK REFERENCE CARDS ═══
+  const cards: Array<{
+    title: string;
+    items: string[];
+    iconColor: [number, number, number];
+  }> = [];
 
-    // Calculate box height
-    let totalH = 14;
-    const itemLines: string[][] = [];
-    items.forEach((item) => {
-      const cleaned = cleanMath(item);
-      const lines = wrapText(cleaned, CONTENT_W - 30, 9);
-      itemLines.push(lines);
-      totalH += lines.length * 4.5 + 4;
+  if (cleanFormulas.length > 0) {
+    cards.push({
+      title: "KEY FORMULAS",
+      items: cleanFormulas,
+      iconColor: BRAND_COLOR,
     });
+  }
+  if (cleanMistakes.length > 0) {
+    cards.push({
+      title: "COMMON MISTAKES",
+      items: cleanMistakes,
+      iconColor: [239, 68, 68],
+    });
+  }
+  if (cleanTips.length > 0) {
+    cards.push({
+      title: "EXAM TIPS",
+      items: cleanTips,
+      iconColor: [245, 158, 11],
+    });
+  }
 
-    checkNewPage(totalH + 10);
+  for (const card of cards) {
+    checkPage(30);
 
-    // Section label
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...labelColor);
-    doc.text(label.toUpperCase(), MARGIN, y);
-    y += 4;
+    // Card header
+    pdf.setFillColor(card.iconColor[0], card.iconColor[1], card.iconColor[2]);
+    pdf.roundedRect(ML, y, CW, 7, 2, 2, "F");
+    // Only round top corners - cover bottom with rect
+    pdf.setFillColor(card.iconColor[0], card.iconColor[1], card.iconColor[2]);
+    pdf.rect(ML, y + 4, CW, 3, "F");
 
-    drawRoundedRect(MARGIN, y, CONTENT_W, totalH, 3, bgColor, borderColor);
+    pdf.setFontSize(7);
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(card.title, ML + 5, y + 5);
 
-    let boxY = y + 9;
-    itemLines.forEach((lines) => {
-      // Icon
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...labelColor);
-      doc.text(iconChar, MARGIN + 8, boxY);
+    y += 9;
+
+    // Card body
+    pdf.setFillColor(250, 250, 250);
+    let bodyStart = y;
+
+    for (let i = 0; i < card.items.length; i++) {
+      checkPage(10);
+      const itemText = card.items[i]
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/\$(.+?)\$/g, "$1");
+      const itemLines = pdf.splitTextToSize(itemText, CW - 18);
+      const itemH = itemLines.length * 4.5 + 3;
+
+      // Alternating row bg
+      if (i % 2 === 0) {
+        pdf.setFillColor(248, 248, 248);
+        pdf.rect(ML, y, CW, itemH, "F");
+      }
+
+      // Number
+      pdf.setFontSize(7);
+      pdf.setTextColor(180, 180, 180);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${i + 1}`, ML + 4, y + 5);
 
       // Text
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...COLORS.textSecondary);
-      lines.forEach((line, li) => {
-        doc.text(line, MARGIN + 16, boxY + li * 4.5);
-      });
-      boxY += lines.length * 4.5 + 4;
-    });
+      pdf.setFontSize(8);
+      pdf.setTextColor(80, 80, 80);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(itemLines, ML + 12, y + 5);
 
-    y += totalH + 6;
-  };
-
-  drawBox(note.keyFormulas, "Key Formulas", COLORS.green, COLORS.greenBg, COLORS.green, "▸");
-  drawBox(note.commonMistakes, "Common Mistakes", COLORS.red, COLORS.redBg, COLORS.red, "✕");
-  drawBox(note.examTips, "Exam Tips", COLORS.amber, COLORS.amberBg, COLORS.amber, "★");
-
-  // ═══════════════════════════════════
-  // DIVIDER
-  // ═══════════════════════════════════
-  checkNewPage(10);
-  doc.setDrawColor(...COLORS.border);
-  doc.setLineWidth(0.3);
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 8;
-
-  // ═══════════════════════════════════
-  // MAIN CONTENT
-  // ═══════════════════════════════════
-  const contentLines = note.content.split("\n");
-
-  for (const rawLine of contentLines) {
-    const line = rawLine.trim();
-    if (!line) {
-      y += 3;
-      continue;
+      y += itemH;
     }
 
-    // H2
-    if (line.startsWith("## ")) {
-      const heading = line.slice(3).trim();
-      checkNewPage(16);
-      y += 4;
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...COLORS.textPrimary);
-      const hLines = wrapText(heading, CONTENT_W, 14);
-      hLines.forEach((hl) => {
-        doc.text(hl, MARGIN, y);
-        y += 6.5;
-      });
-      // Green underline
-      doc.setDrawColor(...COLORS.green);
-      doc.setLineWidth(1);
-      doc.line(MARGIN, y - 2, MARGIN + 40, y - 2);
-      doc.setLineWidth(0.3);
-      y += 4;
-      continue;
-    }
+    // Bottom border
+    pdf.setDrawColor(230, 230, 230);
+    pdf.setLineWidth(0.3);
+    pdf.line(ML, y, ML + CW, y);
 
-    // H3
-    if (line.startsWith("### ")) {
-      const heading = line.slice(4).trim();
-      checkNewPage(12);
-      y += 3;
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...COLORS.green);
-      const hLines = wrapText(heading, CONTENT_W, 11);
-      hLines.forEach((hl) => {
-        doc.text(hl, MARGIN, y);
-        y += 5.5;
-      });
-      y += 2;
-      continue;
-    }
+    y += 8;
+  }
 
-    // Display math
-    if (line.startsWith("$$") && line.endsWith("$$")) {
-      const mathText = cleanLatex(line.slice(2, -2));
-      checkNewPage(18);
+  // ═══ MAIN CONTENT ═══
+  checkPage(20);
 
-      const mathLines = wrapText(mathText, CONTENT_W - 24, 10);
-      const mathBoxH = mathLines.length * 5 + 12;
+  const sections = parseContentSections(cleanContent);
 
-      drawRoundedRect(MARGIN + 5, y, CONTENT_W - 10, mathBoxH, 3, COLORS.bgLight, COLORS.border);
+  for (const sec of sections) {
+    switch (sec.type) {
+      case "heading": {
+        checkPage(16);
+        y += 4;
 
-      doc.setFontSize(10);
-      doc.setFont("courier", "normal");
-      doc.setTextColor(...COLORS.textPrimary);
-      let mY = y + 8;
-      mathLines.forEach((ml) => {
-        const mW = doc.getTextWidth(ml);
-        doc.text(ml, MARGIN + (CONTENT_W / 2) - (mW / 2), mY);
-        mY += 5;
-      });
+        // Colored underline
+        pdf.setFillColor(color[0], color[1], color[2]);
+        pdf.rect(ML, y + 6, 20, 1.5, "F");
 
-      y += mathBoxH + 4;
-      continue;
-    }
+        pdf.setFontSize(13);
+        pdf.setTextColor(26, 26, 26);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(sec.text, ML, y + 5);
+        y += 12;
+        break;
+      }
+      case "subheading": {
+        checkPage(12);
+        y += 2;
 
-    // Bullet list
-    if (line.startsWith("- ") || line.startsWith("* ")) {
-      const itemText = cleanMath(line.slice(2).trim());
-      const bLines = wrapText(itemText, CONTENT_W - 14, 9.5);
-      checkNewPage(bLines.length * 4.5 + 3);
+        // Left accent
+        pdf.setFillColor(color[0], color[1], color[2]);
+        pdf.rect(ML, y - 1, 2, 6, "F");
 
-      doc.setFontSize(9.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...COLORS.textSecondary);
+        pdf.setFontSize(10);
+        pdf.setTextColor(50, 50, 50);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(sec.text, ML + 5, y + 3);
+        y += 9;
+        break;
+      }
+      case "bullet": {
+        checkPage(8);
+        const bulletLines = pdf.splitTextToSize(sec.text, CW - 8);
 
-      // Bullet
-      doc.setFillColor(...COLORS.green);
-      doc.circle(MARGIN + 4, y - 1.2, 1, "F");
+        // Dot
+        pdf.setFillColor(color[0], color[1], color[2]);
+        pdf.circle(ML + 2, y + 1.5, 1, "F");
 
-      bLines.forEach((bl, bi) => {
-        doc.text(bl, MARGIN + 10, y + bi * 4.5);
-      });
-      y += bLines.length * 4.5 + 2;
-      continue;
-    }
-
-    // Numbered list
-    if (/^\d+\.\s/.test(line)) {
-      const itemText = cleanMath(line);
-      const nLines = wrapText(itemText, CONTENT_W - 10, 9.5);
-      checkNewPage(nLines.length * 4.5 + 3);
-
-      doc.setFontSize(9.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...COLORS.textSecondary);
-      nLines.forEach((nl, ni) => {
-        doc.text(nl, MARGIN + 6, y + ni * 4.5);
-      });
-      y += nLines.length * 4.5 + 2;
-      continue;
-    }
-
-    // Regular paragraph
-    const pText = cleanMath(line);
-    if (pText) {
-      const pLines = wrapText(pText, CONTENT_W, 9.5);
-      checkNewPage(pLines.length * 4.5 + 2);
-
-      doc.setFontSize(9.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...COLORS.textSecondary);
-      pLines.forEach((pl, pi) => {
-        doc.text(pl, MARGIN, y + pi * 4.5);
-      });
-      y += pLines.length * 4.5 + 2;
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(70, 70, 70);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(bulletLines, ML + 7, y + 2.5);
+        y += bulletLines.length * 4.5 + 2;
+        break;
+      }
+      case "table": {
+        checkPage(8);
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(70, 70, 70);
+        pdf.setFont("helvetica", "normal");
+        const tLines = pdf.splitTextToSize(sec.text, CW);
+        pdf.text(tLines, ML + 2, y + 3);
+        y += tLines.length * 4 + 3;
+        break;
+      }
+      case "text": {
+        checkPage(8);
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(70, 70, 70);
+        pdf.setFont("helvetica", "normal");
+        const textLines = pdf.splitTextToSize(sec.text, CW);
+        pdf.text(textLines, ML, y + 3);
+        y += textLines.length * 4.5 + 2;
+        break;
+      }
     }
   }
 
-  // ═══════════════════════════════════
-  // END BANNER
-  // ═══════════════════════════════════
-  checkNewPage(30);
-  y += 6;
-  doc.setDrawColor(...COLORS.border);
-  doc.setLineWidth(0.3);
-  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 10;
+  // ═══ FOOTER ON LAST PAGE ═══
+  addFooter();
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...COLORS.textMuted);
-  const brandW1 = doc.getTextWidth("Jamb");
-  const brandW2 = doc.getTextWidth("OS");
-  const totalBrandW = brandW1 + brandW2;
-  doc.text("Jamb", (PAGE_W - totalBrandW) / 2, y);
-  doc.setTextColor(...COLORS.green);
-  doc.text("OS", (PAGE_W - totalBrandW) / 2 + brandW1, y);
+  // ═══ BACK COVER ═══
+  pdf.addPage();
 
-  y += 5;
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...COLORS.textMuted);
-  doc.text("Study smarter. Score higher.", PAGE_W / 2, y, { align: "center" });
-  y += 4;
-  doc.text("jambos.ng", PAGE_W / 2, y, { align: "center" });
+  // Centered branding
+  const cy = H / 2 - 20;
+  pdf.setFontSize(20);
+  pdf.setTextColor(26, 26, 26);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("JambOS", W / 2, cy, { align: "center" });
 
-  // Add footer to all pages
-  const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setDrawColor(...COLORS.border);
-    doc.setLineWidth(0.3);
-    doc.line(MARGIN, PAGE_H - 15, PAGE_W - MARGIN, PAGE_H - 15);
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.textMuted);
-    doc.text("Generated by JambOS — jambos.ng", MARGIN, PAGE_H - 10);
-    doc.text(`Page ${i} of ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" });
-  }
+  pdf.setFontSize(9);
+  pdf.setTextColor(160, 160, 160);
+  pdf.setFont("helvetica", "normal");
+  pdf.text("AI-Powered JAMB Preparation", W / 2, cy + 8, { align: "center" });
+
+  // Accent line
+  pdf.setFillColor(color[0], color[1], color[2]);
+  pdf.rect(W / 2 - 15, cy + 14, 30, 1.5, "F");
+
+  pdf.setFontSize(8);
+  pdf.setTextColor(180, 180, 180);
+  pdf.text(`${stripEmDashes(note.topicName)} - ${subjectLabel}`, W / 2, cy + 24, {
+    align: "center",
+  });
+  pdf.text(`Generated ${dateStr}`, W / 2, cy + 30, { align: "center" });
+  pdf.text("jambos.ng", W / 2, cy + 40, { align: "center" });
 
   // Save
-  const filename = `JambOS-${note.topicName.replace(/[^a-zA-Z0-9]/g, "-")}.pdf`;
-  doc.save(filename);
+  const filename = `JambOS_${note.topicName.replace(/\s+/g, "_")}_Notes.pdf`;
+  pdf.save(filename);
 }

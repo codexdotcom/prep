@@ -1,14 +1,44 @@
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 
 interface Message {
   role: "user" | "assistant";
-  content: string;
+  content: string | any[];
 }
 
 interface AIResponse {
   text: string;
   error?: string;
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 2,
+  timeoutMs = 180000
+): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      // Retry on 529 (overloaded) or 500+
+      if ((res.status === 529 || res.status >= 500) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (attempt < retries && (err.name === "AbortError" || err.cause?.code === "ECONNRESET" || err.message?.includes("fetch failed"))) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Max retries exceeded");
 }
 
 export async function generateAIResponse(
@@ -21,7 +51,7 @@ export async function generateAIResponse(
   }
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,10 +73,11 @@ export async function generateAIResponse(
     }
 
     const data = await res.json();
-    const text = data.content
-      ?.filter((block: any) => block.type === "text")
-      .map((block: any) => block.text)
-      .join("\n") || "";
+    const text =
+      data.content
+        ?.filter((block: any) => block.type === "text")
+        .map((block: any) => block.text)
+        .join("\n") || "";
 
     return { text };
   } catch (error) {

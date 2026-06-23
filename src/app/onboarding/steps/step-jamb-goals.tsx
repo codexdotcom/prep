@@ -105,7 +105,7 @@ const grouped = JAMB_SUBJECTS.reduce((acc, sub) => {
           <input
             {...register("previousJambScore", { valueAsNumber: true })}
             type="number"
-            placeholder="Leave blank if first time"
+            placeholder="Type 0 if first time"
             className="input-field"
             min={0}
             max={400}

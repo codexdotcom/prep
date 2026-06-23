@@ -16,155 +16,219 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Topic and subject required" }, { status: 400 });
     }
 
-    // Get topic info
-    const topic = await db.topic.findUnique({
-      where: { id: topicId },
-      select: { id: true, name: true, subject: true, description: true },
-    });
+    // Parallel data fetch
+    const [topic, questions, uploads] = await Promise.all([
+      db.topic.findUnique({
+        where: { id: topicId },
+        select: { id: true, name: true, subject: true, description: true },
+      }),
+      db.question.findMany({
+        where: { topicId, isActive: true },
+        select: {
+          body: true,
+          optionA: true,
+          optionB: true,
+          optionC: true,
+          optionD: true,
+          correctOption: true,
+          explanation: true,
+          difficulty: true,
+          year: true,
+          correctRate: true,
+        },
+        orderBy: { totalAttempts: "desc" },
+        take: 20,
+      }),
+      uploadIds?.length
+        ? db.noteUpload.findMany({
+            where: { id: { in: uploadIds }, userId: session.user.id },
+            select: { extractedText: true, filename: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
     if (!topic) {
       return NextResponse.json({ error: "Topic not found" }, { status: 404 });
     }
 
-    // ─── Step 1: Analyze the question bank for this topic ───
-    const questions = await db.question.findMany({
-      where: { topicId, isActive: true },
-      select: {
-        body: true,
-        optionA: true,
-        optionB: true,
-        optionC: true,
-        optionD: true,
-        correctOption: true,
-        explanation: true,
-        difficulty: true,
-        year: true,
-        correctRate: true,
-        totalAttempts: true,
-      },
-      orderBy: { totalAttempts: "desc" },
-      take: 50,
-    });
-
-    // ─── Step 2: Identify patterns from questions ───
+    // Build trimmed question analysis
     const questionAnalysis = questions.map((q, i) => {
       const correctAnswer = (q as any)[`option${q.correctOption}`];
-      return `Q${i + 1}${q.year ? ` (${q.year})` : ""}${q.difficulty === "HARD" ? " [HARD]" : ""}: ${q.body}\nAnswer: ${q.correctOption}. ${correctAnswer}${q.explanation ? `\nWhy: ${q.explanation}` : ""}${q.correctRate !== null ? `\n(${Math.round((q.correctRate || 0) * 100)}% of students get this right)` : ""}`;
+      const body = q.body.length > 250 ? q.body.slice(0, 250) + "..." : q.body;
+      const explanation = q.explanation ? q.explanation.slice(0, 150) : "";
+      return `Q${i + 1}${q.year ? ` (${q.year})` : ""}${q.difficulty === "HARD" ? " [HARD]" : ""}: ${body}\nAns: ${q.correctOption}. ${correctAnswer}${explanation ? `\nWhy: ${explanation}` : ""}`;
     }).join("\n\n");
 
-    // ─── Step 3: Get uploaded reference materials ───
-    let uploadedContent = "";
-    if (uploadIds && uploadIds.length > 0) {
-      const uploads = await db.noteUpload.findMany({
-        where: { id: { in: uploadIds }, userId: session.user.id },
-        select: { extractedText: true, filename: true },
-      });
+    const hardCount = questions.filter(
+      (q) => (q.correctRate !== null && q.correctRate < 0.4) || q.difficulty === "HARD"
+    ).length;
+    const easyCount = questions.filter(
+      (q) => q.correctRate !== null && q.correctRate > 0.8
+    ).length;
 
-      uploadedContent = uploads
-        .filter((u) => u.extractedText)
-        .map((u) => `--- From: ${u.filename} ---\n${u.extractedText}`)
-        .join("\n\n");
-    }
+    const uploadedContent = uploads
+      .filter((u) => u.extractedText)
+      .map((u) => `--- ${u.filename} ---\n${u.extractedText!.slice(0, 1500)}`)
+      .join("\n\n");
 
-    // ─── Step 4: Find what students struggle with ───
-    const hardQuestions = questions.filter((q) =>
-      (q.correctRate !== null && q.correctRate < 0.4) || q.difficulty === "HARD"
-    );
+    const systemPrompt = `You are an expert Nigerian JAMB examiner and tutor. Create study notes that are comprehensive, clear, and focused on what JAMB actually tests.
 
-    const easyQuestions = questions.filter((q) =>
-      q.correctRate !== null && q.correctRate > 0.8
-    );
-
-    // ─── Step 5: Generate the note with AI ───
-    const systemPrompt = `You are an expert Nigerian JAMB examiner and tutor creating study notes. 
-Your job is to create the MOST EFFICIENT study notes possible — covering ONLY what students need to know to answer JAMB questions on this topic.
-
-CRITICAL RULES:
-- Analyze the actual exam questions provided to understand exactly what JAMB tests
-- Focus on concepts that appear repeatedly in questions
-- Include worked examples that mirror actual JAMB question patterns
-- Use simple English — the student might be reading this on a phone with limited time
-- Use $...$ for inline math and $$...$$ for display math (LaTeX notation)
+FORMATTING RULES:
+- Use $...$ for inline math and $$...$$ for display math (LaTeX)
 - Bold key terms with **term**
-- Structure with clear headings using ## and ###
-- Keep it concise — every sentence must earn its place
-- Include memory tricks (mnemonics) where helpful
-- End with a quick self-test section`;
+- Use ## for main sections and ### for subsections
+- Use markdown tables for comparisons
+- Use numbered lists for steps and processes
+- Use bullet lists for collections of facts
+- Write in clear, simple English suitable for Nigerian secondary school students
+- Every sentence must serve the student. No filler.
 
-    const prompt = `Generate comprehensive but concise JAMB study notes for:
+CONTENT RULES:
+- Analyze the actual exam questions to determine what JAMB really tests
+- Focus heavily on concepts that appear repeatedly in questions
+- For hard topics (<40% pass rate), give extra detail and multiple worked examples
+- For easy topics (>80% pass rate), cover briefly
+- Include step-by-step worked examples that mirror actual JAMB question patterns
+- Show the formula, the substitution, and the answer for every calculation
+- Include memory tricks and mnemonics where helpful
+- Address the most common wrong answers and why students pick them
+
+PRACTICE QUESTIONS:
+After your main notes, include exactly 5 practice questions using this format:
+
+[PRACTICE]
+Q: (question text)
+A) (option)
+B) (option)
+C) (option)
+D) (option)
+CORRECT: (letter)
+WHY: (1-2 sentence explanation)
+[/PRACTICE]
+
+Make the questions progressive: start easy, end hard.`;
+
+    const prompt = `Generate comprehensive JAMB study notes for:
 
 **Subject:** ${subject.replace(/_/g, " ")}
 **Topic:** ${topic.name}
-${topic.description ? `**Description:** ${topic.description}` : ""}
+${topic.description ? `**About:** ${topic.description}` : ""}
 
-I have analyzed ${questions.length} actual JAMB questions on this topic. Here are the patterns:
+${questions.length} actual JAMB questions analyzed:
 
 ${questionAnalysis}
 
-${hardQuestions.length > 0 ? `\n**Questions students struggle with most (${hardQuestions.length} questions with <40% success rate):**\nThese concepts MUST be covered in detail with clear explanations.` : ""}
+${hardCount > 0 ? `\n${hardCount} questions have <40% success rate. Cover these in extra detail.` : ""}
+${easyCount > 0 ? `\n${easyCount} questions have >80% success rate. Cover briefly.` : ""}
+${uploadedContent ? `\nReference material:\n${uploadedContent.slice(0, 2000)}` : ""}
 
-${easyQuestions.length > 0 ? `\n**Easy marks (${easyQuestions.length} questions with >80% success rate):**\nCover these briefly — students mostly know them already.` : ""}
-
-${uploadedContent ? `\n**Additional reference material provided by the teacher:**\n${uploadedContent.slice(0, 3000)}` : ""}
-
-Generate the notes in this EXACT structure:
+Use this structure:
 
 ## ${topic.name}
 
+### What JAMB Tests
+(Brief overview of the key areas JAMB focuses on for this topic)
+
 ### Key Concepts
-(Core theory — only what JAMB actually tests)
+(Core theory with clear explanations. Use tables for comparisons.)
 
 ### Formulas & Definitions
-(Every formula that appears in the questions, with clear labels)
+(Every formula and definition that appears in questions. Use display math.)
 
 ### Worked Examples
-(3-5 worked examples that mirror actual JAMB question patterns. Show step-by-step solutions.)
+(4-5 step-by-step solutions mirroring real JAMB question patterns)
 
-### Common Mistakes
-(What students get wrong based on the question analysis)
+### Common Traps
+(What students get wrong and why. Be specific.)
 
-### Exam Tips
-(Specific tricks for answering JAMB questions on this topic faster)
+### Quick Review
+(Bullet points of the most important facts to memorize)
 
-### Quick Self-Test
-(5 quick questions the student can answer mentally to check understanding)
+Then add exactly 5 practice questions using the [PRACTICE] format.
 
-Make sure EVERY concept you include can be traced back to an actual JAMB question pattern. Do NOT include anything that JAMB never tests.`;
+Finally, add these metadata sections:
 
-    const { text: noteContent, error: aiError } = await generateAIResponse(
+---SUMMARY---
+(2-3 sentence summary of the most critical takeaways)
+---KEY_FORMULAS---
+(one formula per line)
+---COMMON_MISTAKES---
+(one mistake per line)
+---EXAM_TIPS---
+(one tip per line)
+---END---`;
+
+    const { text: rawContent, error: aiError } = await generateAIResponse(
       systemPrompt,
       [{ role: "user", content: prompt }],
       4000
     );
 
-    if (aiError || !noteContent) {
-      return NextResponse.json({ error: "Failed to generate notes. Try again." }, { status: 500 });
+    if (aiError || !rawContent) {
+      return NextResponse.json(
+        { error: "Failed to generate notes. Try again." },
+        { status: 500 }
+      );
     }
 
-    // ─── Step 6: Extract structured data from the note ───
-    const extractSection = (content: string, heading: string): string[] => {
-      const regex = new RegExp(`###\\s*${heading}[\\s\\S]*?(?=###|$)`, "i");
+    // Parse metadata sections
+    const parseSuffix = (content: string, marker: string): string[] => {
+      const regex = new RegExp(`---${marker}---([\\s\\S]*?)(?=---[A-Z_]+---|$)`);
       const match = content.match(regex);
       if (!match) return [];
-      return match[0]
+      return match[1]
         .split("\n")
-        .filter((line) => line.startsWith("- ") || line.startsWith("* ") || /^\d+\./.test(line.trim()))
-        .map((line) => line.replace(/^[-*]\s*/, "").replace(/^\d+\.\s*/, "").trim())
-        .filter(Boolean);
+        .map((l) => l.replace(/^[-*•]\s*/, "").replace(/^\d+\.\s*/, "").trim())
+        .filter((l) => l.length > 2);
     };
 
-    const keyFormulas = extractSection(noteContent, "Formulas");
-    const commonMistakes = extractSection(noteContent, "Common Mistakes");
-    const examTips = extractSection(noteContent, "Exam Tips");
+    const summary = (() => {
+      const match = rawContent.match(
+        /---SUMMARY---([\s\S]*?)(?=---[A-Z_]+---|$)/
+      );
+      return match ? match[1].trim() : null;
+    })();
 
-    // ─── Step 7: Generate TL;DR summary ───
-    const { text: summary } = await generateAIResponse(
-      "You create ultra-concise summaries. Respond with a 2-3 sentence summary only.",
-      [{ role: "user", content: `Summarize these study notes in 2-3 sentences. What are the absolute essentials a student must know?\n\n${noteContent.slice(0, 2000)}` }],
-      200
+    const keyFormulas = parseSuffix(rawContent, "KEY_FORMULAS");
+    const commonMistakes = parseSuffix(rawContent, "COMMON_MISTAKES");
+    const examTips = parseSuffix(rawContent, "EXAM_TIPS");
+
+    // Strip metadata from main content
+    const noteContent =
+      rawContent.replace(/---SUMMARY---[\s\S]*?---END---/, "").trim() ||
+      rawContent.replace(/---SUMMARY---[\s\S]*/, "").trim() ||
+      rawContent;
+
+    // Extract practice questions
+    const practiceQuestions: Array<{
+      question: string;
+      options: string[];
+      correctIndex: number;
+      explanation: string;
+    }> = [];
+
+    const practiceBlocks = rawContent.matchAll(
+      /\[PRACTICE\]([\s\S]*?)\[\/PRACTICE\]/g
     );
+    for (const block of practiceBlocks) {
+      const text = block[1];
+      const qMatch = text.match(/Q:\s*(.+)/);
+      const opts = [...text.matchAll(/([A-D])\)\s*(.+)/g)].map((m) =>
+        m[2].trim()
+      );
+      const correctMatch = text.match(/CORRECT:\s*([A-D])/);
+      const whyMatch = text.match(/WHY:\s*(.+)/);
+      if (qMatch && opts.length >= 2 && correctMatch) {
+        practiceQuestions.push({
+          question: qMatch[1].trim(),
+          options: opts,
+          correctIndex: correctMatch[1].charCodeAt(0) - 65,
+          explanation: whyMatch?.[1]?.trim() || "",
+        });
+      }
+    }
 
-    // ─── Step 8: Save to database ───
+    // Save to database
     const existingNote = await db.generatedNote.findFirst({
       where: { topicId, subject: subject as any },
       orderBy: { version: "desc" },
@@ -177,20 +241,25 @@ Make sure EVERY concept you include can be traced back to an actual JAMB questio
       data: {
         subject: subject as any,
         topicId,
-        title: `${topic.name} — JAMB Study Notes`,
+        title: `${topic.name} - JAMB Study Notes`,
         content: noteContent,
         summary: summary || null,
         keyFormulas,
         commonMistakes,
         examTips,
+        practiceQuestions:
+          practiceQuestions.length > 0 ? (practiceQuestions as any) : undefined,
         questionCount: questions.length,
-        difficulty: questions.length > 0
-          ? questions.filter((q) => q.difficulty === "HARD").length > questions.length / 2 ? "HARD" : "MEDIUM"
-          : "MEDIUM",
+        difficulty:
+          questions.length > 0
+            ? questions.filter((q) => q.difficulty === "HARD").length >
+              questions.length / 2
+              ? "HARD"
+              : "MEDIUM"
+            : "MEDIUM",
         version,
         isPublished: true,
         generatedFrom: {
-          questionIds: questions.map((q) => (q as any).id).filter(Boolean),
           uploadIds: uploadIds || [],
           generatedAt: new Date().toISOString(),
         },
@@ -206,11 +275,16 @@ Make sure EVERY concept you include can be traced back to an actual JAMB questio
       keyFormulas: note.keyFormulas,
       commonMistakes: note.commonMistakes,
       examTips: note.examTips,
+      practiceQuestions:
+        practiceQuestions.length > 0 ? practiceQuestions : undefined,
       questionCount: note.questionCount,
       version: note.version,
     });
   } catch (error) {
     console.error("Note generation error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong" },
+      { status: 500 }
+    );
   }
 }

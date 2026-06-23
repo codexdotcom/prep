@@ -1,4 +1,3 @@
-// src/app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -9,7 +8,7 @@ import {
   Flame, Calendar, Crown, GraduationCap, Gift, Settings, User,
   TrendingUp, MessageCircle, Sparkles, Play, Clock, Compass,
   ArrowUpRight, Loader2, RotateCcw, FileText, Shield, Building2,
-  ClipboardList, Users, Home, Award, Heart, Menu, X,
+  ClipboardList, Users, Home, Award, Heart, Menu, X, MapPin,
 } from "lucide-react";
 import { Footer } from "@/components/ui/footer";
 import { AdaptiveInsights } from "@/components/dashboard/adaptive-insights";
@@ -213,6 +212,7 @@ export default function DashboardPage() {
   const [xp, setXp] = useState<any | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [hasChallenge, setHasChallenge] = useState(false);
 
   const [simAdjustments, setSimAdjustments] = useState<Record<string, number>>({});
   const [simResult, setSimResult] = useState<SimResult | null>(null);
@@ -234,6 +234,10 @@ export default function DashboardPage() {
     fetch("/api/gamification/profile")
       .then((r) => r.json())
       .then((d) => { if (active) setXp(d); })
+      .catch(() => {});
+    fetch("/api/challenge/today")
+      .then((r) => r.json())
+      .then((d) => { if (active && d?.challenge) setHasChallenge(true); })
       .catch(() => {});
     return () => { active = false; };
   }, []);
@@ -260,7 +264,6 @@ export default function DashboardPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  // Score color only for data viz (score ring, progress bars)
   const scoreColor = (s: number) => s >= 280 ? "#22c55e" : s >= 220 ? "#f59e0b" : "#ef4444";
   const accColor = (a: number) => a >= 70 ? "#22c55e" : a >= 50 ? "#f59e0b" : "#ef4444";
   const fmt = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -293,7 +296,7 @@ export default function DashboardPage() {
     ]},
     { label: "Progress", items: [
       { icon: BarChart3, title: "Analytics", href: "/analytics", desc: "Performance breakdown" },
-      { icon: TrendingUp, title: "Rankings", href: "/rankings", desc: "See where you stand" },
+      // { icon: TrendingUp, title: "Rankings", href: "/rankings", desc: "See where you stand" },
       { icon: Brain, title: "Diagnostic", href: "/diagnostic", desc: "Full assessment" },
     ]},
     { label: "Discover", items: [
@@ -309,13 +312,12 @@ export default function DashboardPage() {
       { icon: Gift, title: "Invite Friends", href: "/referral", desc: "Earn free premium" },
       { icon: Shield, title: "Ambassador", href: "/ambassador", desc: "Represent your school" },
       { icon: Users, title: "Find a Tutor", href: "/tutors", desc: "Book a session" },
-      { icon: Building2, title: "Tutorial Center", href: "/center", desc: "School portal" },
+    
     ]},
   ];
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#fafafa" }}>
-      {/* Onboarding: shows once, never again */}
       <OnboardingWalkthrough />
 
       {/* ═══ Top Bar ═══ */}
@@ -430,69 +432,74 @@ export default function DashboardPage() {
         {analyticsLoading ? (
           <HeroSkeleton />
         ) : hasData ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-            <div className="sm:col-span-2 rounded-2xl p-5 flex items-center gap-5" style={{ background: "#fff", border: "1px solid #eee" }}>
-              {(() => {
-                const size = 88; const r = (size - 10) / 2; const circ = 2 * Math.PI * r;
-                const pct = Math.min((stats.predictedScore / 400) * 100, 100);
-                const offset = circ - (pct / 100) * circ;
-                const color = scoreColor(stats.predictedScore);
-                return (
-                  <div className="relative shrink-0">
-                    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f3f3" strokeWidth="5" />
-                      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
-                        strokeDasharray={circ} strokeDashoffset={offset} transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition: "stroke-dashoffset 1s ease" }} />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color, lineHeight: 1 }}>{stats.predictedScore}</span>
-                      <span className="text-[0.5rem]" style={{ color: "#bbb" }}>/400</span>
-                    </div>
-                  </div>
-                );
-              })()}
-              <div className="flex-1 min-w-0">
-                <p className="text-[0.625rem] uppercase tracking-wider mb-3" style={{ color: "#aaa" }}>Predicted JAMB Score</p>
-                <div className="flex items-center gap-5">
-                  {[
-                    { label: "Accuracy", value: `${stats.accuracy}%`, color: accColor(stats.accuracy) },
-                    { label: "Streak", value: `${stats.streak}d`, color: stats.streak > 0 ? "#f59e0b" : "#ccc" },
-                    { label: "Level", value: `${stats.level}`, color: "#8b5cf6" },
-                  ].map(({ label, value, color }, i) => (
-                    <div key={label} className="flex items-center gap-5">
-                      {i > 0 && <div style={{ width: "1px", height: "24px", background: "#eee" }} />}
-                      <div>
-                        <p className="text-[0.625rem]" style={{ color: "#aaa" }}>{label}</p>
-                        <p className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color }}>{value}</p>
+          <div className={`grid grid-cols-1 ${hasChallenge ? "sm:grid-cols-3" : "sm:grid-cols-1"} gap-3 mb-6`}>
+            <div className={hasChallenge ? "sm:col-span-2" : ""}>
+              <div className="rounded-2xl p-5 flex items-center gap-5" style={{ background: "#fff", border: "1px solid #eee" }}>
+                {(() => {
+                  const size = 88; const r = (size - 10) / 2; const circ = 2 * Math.PI * r;
+                  const pct = Math.min((stats.predictedScore / 400) * 100, 100);
+                  const offset = circ - (pct / 100) * circ;
+                  const color = scoreColor(stats.predictedScore);
+                  return (
+                    <div className="relative shrink-0">
+                      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f3f3" strokeWidth="5" />
+                        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+                          strokeDasharray={circ} strokeDashoffset={offset} transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition: "stroke-dashoffset 1s ease" }} />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color, lineHeight: 1 }}>{stats.predictedScore}</span>
+                        <span className="text-[0.5rem]" style={{ color: "#bbb" }}>/400</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-3">
-                  <div className="flex justify-between text-[0.5625rem] mb-1">
-                    <span style={{ color: "#bbb" }}>Target: {stats.targetScore}</span>
-                    <span style={{ color: scoreColor(stats.predictedScore) }}>
-                      {stats.predictedScore >= stats.targetScore ? "On track" : `${stats.targetScore - stats.predictedScore} to go`}
-                    </span>
+                  );
+                })()}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[0.625rem] uppercase tracking-wider mb-3" style={{ color: "#aaa" }}>Predicted JAMB Score</p>
+                  <div className="flex items-center gap-5">
+                    {[
+                      { label: "Accuracy", value: `${stats.accuracy}%`, color: accColor(stats.accuracy) },
+                      { label: "Streak", value: `${stats.streak}d`, color: stats.streak > 0 ? "#f59e0b" : "#ccc" },
+                      { label: "Level", value: `${stats.level}`, color: "#8b5cf6" },
+                    ].map(({ label, value, color }, i) => (
+                      <div key={label} className="flex items-center gap-5">
+                        {i > 0 && <div style={{ width: "1px", height: "24px", background: "#eee" }} />}
+                        <div>
+                          <p className="text-[0.625rem]" style={{ color: "#aaa" }}>{label}</p>
+                          <p className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color }}>{value}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ height: "4px", borderRadius: "9999px", background: "#f3f3f3" }}>
-                    <div style={{ width: `${Math.min((stats.predictedScore / stats.targetScore) * 100, 100)}%`, height: "100%", borderRadius: "9999px", background: scoreColor(stats.predictedScore), transition: "width 1s" }} />
+                  <div className="mt-3">
+                    <div className="flex justify-between text-[0.5625rem] mb-1">
+                      <span style={{ color: "#bbb" }}>Target: {stats.targetScore}</span>
+                      <span style={{ color: scoreColor(stats.predictedScore) }}>
+                        {stats.predictedScore >= stats.targetScore ? "On track" : `${stats.targetScore - stats.predictedScore} to go`}
+                      </span>
+                    </div>
+                    <div style={{ height: "4px", borderRadius: "9999px", background: "#f3f3f3" }}>
+                      <div style={{ width: `${Math.min((stats.predictedScore / stats.targetScore) * 100, 100)}%`, height: "100%", borderRadius: "9999px", background: scoreColor(stats.predictedScore), transition: "width 1s" }} />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <button onClick={() => router.push("/challenge")} className="rounded-2xl p-5 text-left transition-all flex flex-col justify-between"
-              style={{ background: "#111" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1a1a1a"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#111"; }}>
-              <Play className="h-5 w-5 mb-3" style={{ color: "#fff" }} />
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "#fff" }}>Daily Challenge</p>
-                <p className="text-[0.625rem] mt-0.5" style={{ color: "#888" }}>7 questions. Compete nationally.</p>
-              </div>
-              <ChevronRight className="h-4 w-4 mt-3" style={{ color: "#555" }} />
-            </button>
+            {/* Daily Challenge - only shown when a challenge exists */}
+            {hasChallenge && (
+              <button onClick={() => router.push("/challenge")} className="rounded-2xl p-5 text-left transition-all flex flex-col justify-between"
+                style={{ background: "#111" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#1a1a1a"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#111"; }}>
+                <Play className="h-5 w-5 mb-3" style={{ color: "#fff" }} />
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "#fff" }}>Daily Challenge</p>
+                  <p className="text-[0.625rem] mt-0.5" style={{ color: "#888" }}>7 questions. Compete nationally.</p>
+                </div>
+                <ChevronRight className="h-4 w-4 mt-3" style={{ color: "#555" }} />
+              </button>
+            )}
           </div>
         ) : (
           <button onClick={() => router.push("/diagnostic")} className="w-full rounded-2xl p-6 mb-6 text-left" style={{ background: "#fff", border: "1px solid #eee" }}>
@@ -571,7 +578,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Inline Trajectory */}
+        {/* ═══ Improved Trajectory ═══ */}
         {showTraj && (
           <div className="rounded-2xl mb-6 p-5" style={{ background: "#fff", border: "1px solid #eee" }}>
             <div className="flex items-center justify-between mb-4">
@@ -587,41 +594,93 @@ export default function DashboardPage() {
               <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "#888" }} /></div>
             ) : trajData && (
               <>
-                <div className="flex items-center justify-center gap-6 mb-4">
+                {/* Visual score arc */}
+                <div className="flex items-center justify-center gap-3 mb-5">
                   <div className="text-center">
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Now</p>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: scoreColor(trajData.currentScore) }}>{trajData.currentScore}</p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "2rem", lineHeight: 1, color: scoreColor(trajData.currentScore) }}>{trajData.currentScore}</p>
                   </div>
-                  <TrendingUp className="h-4 w-4" style={{ color: "#888" }} />
+                  <div className="flex-1 max-w-[140px] relative" style={{ height: "4px", borderRadius: "9999px", background: "#f3f3f3" }}>
+                    <div style={{
+                      width: `${Math.min(((trajData.currentScore - 100) / (trajData.targetScore - 100)) * 100, 100)}%`,
+                      height: "100%", borderRadius: "9999px", background: scoreColor(trajData.currentScore), transition: "width 0.5s"
+                    }} />
+                    <div className="absolute -top-1 right-0 h-2.5 w-0.5 rounded" style={{ background: "#22c55e" }} />
+                  </div>
                   <div className="text-center">
                     <p className="text-[0.5625rem]" style={{ color: "#bbb" }}>Target</p>
-                    <p style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", lineHeight: 1, color: "#111" }}>{trajData.targetScore}</p>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: "2rem", lineHeight: 1, color: "#22c55e" }}>{trajData.targetScore}</p>
                   </div>
                 </div>
-                <p className="text-xs text-center mb-4" style={{ color: "#999" }}>
-                  {trajData.gap > 0 ? `${trajData.gap} points to close in ~${trajData.weeksNeeded} weeks` : "You are at your target"}
-                </p>
-                <div className="space-y-2 mb-4">
+
+                {trajData.gap > 0 && (
+                  <div className="rounded-xl p-3 mb-4 text-center" style={{ background: "#fafafa" }}>
+                    <p className="text-sm" style={{ color: "#555" }}>
+                      <span className="font-bold" style={{ fontFamily: "var(--font-mono)", color: "#111" }}>{trajData.gap}</span> points to close in roughly <span className="font-bold" style={{ fontFamily: "var(--font-mono)", color: "#111" }}>{trajData.weeksNeeded}</span> weeks of consistent practice
+                    </p>
+                  </div>
+                )}
+
+                {/* Subject gaps */}
+                <p className="text-[0.5625rem] font-semibold uppercase tracking-widest mb-2" style={{ color: "#bbb" }}>Subject gaps</p>
+                <div className="space-y-2.5 mb-5">
                   {trajData.subjectBreakdown.sort((a, b) => b.gap - a.gap).slice(0, 4).map((s) => (
-                    <div key={s.subject} className="flex items-center gap-3">
-                      <span className="text-[0.625rem] w-20 truncate" style={{ color: "#777" }}>{fmt(s.subject)}</span>
-                      <div className="flex-1" style={{ height: "4px", borderRadius: "9999px", background: "#f3f3f3" }}>
-                        <div style={{ width: `${s.accuracy}%`, height: "100%", borderRadius: "9999px", background: s.gap > 10 ? "#ef4444" : s.gap > 0 ? "#f59e0b" : "#22c55e" }} />
+                    <div key={s.subject}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold" style={{ color: "#333" }}>{fmt(s.subject)}</span>
+                        <div className="flex items-center gap-2">
+                          {s.weakTopics.length > 0 && (
+                            <span className="text-[0.5625rem]" style={{ color: "#bbb" }}>{s.weakTopics.length} weak</span>
+                          )}
+                          <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: accColor(s.accuracy) }}>{s.accuracy}%</span>
+                        </div>
                       </div>
-                      <span className="text-[0.5625rem] font-semibold w-8 text-right" style={{ fontFamily: "var(--font-mono)", color: "#aaa" }}>{s.accuracy}%</span>
+                      <div style={{ height: "5px", borderRadius: "9999px", background: "#f3f3f3" }}>
+                        <div style={{ width: `${s.accuracy}%`, height: "100%", borderRadius: "9999px", background: s.gap > 10 ? "#ef4444" : s.gap > 0 ? "#f59e0b" : "#22c55e", transition: "width 0.5s" }} />
+                      </div>
+                      {s.weakTopics.length > 0 && (
+                        <p className="text-[0.5625rem] mt-1" style={{ color: "#bbb" }}>
+                          Focus: {s.weakTopics.slice(0, 2).join(", ")}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
-                <div className="space-y-2">
-                  {trajData.milestones.slice(0, 3).map((m) => (
-                    <div key={m.week} className="flex items-center gap-2 rounded-lg p-2" style={{ background: "#fafafa" }}>
-                      <span className="flex h-6 w-6 items-center justify-center rounded text-[0.5625rem] font-bold" style={{ fontFamily: "var(--font-mono)", background: "#f5f5f5", color: "#555" }}>W{m.week}</span>
-                      <span className="text-xs flex-1" style={{ color: "#666" }}>{fmt(m.focus)} focus</span>
-                      <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: scoreColor(m.expectedScore) }}>{m.expectedScore}</span>
-                    </div>
-                  ))}
+
+                {/* Weekly milestones - visual timeline */}
+                <p className="text-[0.5625rem] font-semibold uppercase tracking-widest mb-2" style={{ color: "#bbb" }}>Weekly plan</p>
+                <div className="relative pl-5">
+                  {/* Timeline line */}
+                  <div className="absolute left-[9px] top-2 bottom-2 w-px" style={{ background: "#eee" }} />
+                  <div className="space-y-0">
+                    {trajData.milestones.slice(0, 5).map((m, i) => (
+                      <div key={m.week} className="relative flex items-start gap-3 pb-3">
+                        {/* Dot */}
+                        <div className="absolute -left-5 top-1.5 flex h-[10px] w-[10px] items-center justify-center rounded-full"
+                          style={{ background: i === 0 ? scoreColor(m.expectedScore) : "#eee", border: i === 0 ? "none" : "2px solid #ddd" }} />
+                        <div className="flex-1 rounded-lg p-2.5" style={{ background: i === 0 ? "#fafafa" : "transparent" }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold" style={{ color: "#333" }}>Week {m.week}</span>
+                            <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: scoreColor(m.expectedScore) }}>{m.expectedScore}</span>
+                          </div>
+                          <p className="text-[0.6875rem]" style={{ color: "#888" }}>{fmt(m.focus)} focus</p>
+                          {i === 0 && m.tasks.length > 0 && (
+                            <div className="mt-1.5 space-y-0.5">
+                              {m.tasks.slice(0, 2).map((t, ti) => (
+                                <p key={ti} className="text-[0.5625rem]" style={{ color: "#aaa" }}>- {t}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <button onClick={() => router.push("/trajectory")} className="text-xs font-semibold mt-3 w-full text-center" style={{ color: "#111" }}>View full roadmap →</button>
+                {trajData.milestones.length > 5 && (
+                  <button onClick={() => router.push("/trajectory")} className="text-xs font-semibold mt-2 w-full text-center" style={{ color: "#111" }}>
+                    View all {trajData.milestones.length} weeks →
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -669,16 +728,16 @@ export default function DashboardPage() {
             {[
               { label: "PROGRESS", items: [
                 { icon: BarChart3, title: "Analytics", href: "/analytics", color: "#8b5cf6" },
-                { icon: TrendingUp, title: "Rankings", href: "/rankings", color: "#3b82f6" },
+              
                 { icon: GraduationCap, title: "Reality Mode", href: "/reality", color: "#f59e0b" },
                 { icon: Compass, title: "Career Discovery", href: "/career", color: "#555" },
-                { icon: Brain, title: "Diagnostic Test", href: "/diagnostic", color: "#3b82f6" },
+               
               ]},
               { label: "AFTER JAMB", items: [
                 { icon: GraduationCap, title: "Post-UTME Prep", href: "/post-utme", color: "#ec4899" },
                 { icon: Heart, title: "Uni Match", href: "/match", color: "#f43f5e" },
                 { icon: ClipboardList, title: "Track Admission", href: "/admission", color: "#3b82f6" },
-                { icon: Award, title: "Scholarships", href: "/scholarships", color: "#f59e0b" },
+              
               ]},
             ].map(({ label, items }) => (
               <div key={label} className="mb-5">
@@ -710,7 +769,7 @@ export default function DashboardPage() {
               { label: "COMMUNITY", items: [
                 { icon: Users, title: "Find a Tutor", href: "/tutors", color: "#555" },
                 { icon: Shield, title: "Ambassador", href: "/ambassador", color: "#555" },
-                { icon: Building2, title: "Tutorial Center", href: "/center", color: "#3b82f6" },
+               
               ]},
             ].map(({ label, items }) => (
               <div key={label} className="mb-5">

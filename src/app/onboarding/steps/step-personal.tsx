@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, User, MapPin } from "lucide-react";
+import { ArrowRight, User, MapPin, Phone } from "lucide-react";
 import {
   personalInfoSchema,
   type PersonalInfoInput,
@@ -59,6 +59,26 @@ export function StepPersonal({ defaultValues, onComplete }: Props) {
             <p className="error-text">{errors.lastName.message}</p>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="label">WhatsApp Number</label>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <input
+            {...register("whatsappNumber")}
+            type="tel"
+            inputMode="tel"
+            placeholder="+234 801 234 5678"
+            className="input-field pl-10"
+          />
+        </div>
+        {errors.whatsappNumber && (
+          <p className="error-text">{errors.whatsappNumber.message}</p>
+        )}
+        <p className="text-[0.625rem] mt-1 text-white/30">
+          We'll send study reminders and daily tips via WhatsApp
+        </p>
       </div>
 
       <div>

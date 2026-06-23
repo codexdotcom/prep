@@ -3,26 +3,17 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  Zap,
-  Clock,
-  Trophy,
-  Star,
-  ChevronRight,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  Crown,
-  Share2,
-  Flame,
+  ArrowLeft, Zap, Clock, Trophy, ChevronRight, ChevronLeft,
+  Loader2, CheckCircle2, XCircle, Share2, Flame, Target,
+  Timer, Award, TrendingUp, BarChart3, Home,
 } from "lucide-react";
-import { formatTime } from "@/lib/utils";
-import { Logo } from "@/components/ui/logo";
-import { ShareButton } from "@/components/ui/share-button";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 interface ChallengeQuestion {
   id: string;
   body: string;
+  imageUrl?: string | null;
   optionA: string;
   optionB: string;
   optionC: string;
@@ -76,18 +67,43 @@ interface SubmitResult {
   isTopTen: boolean;
 }
 
-const RANK_ICONS = ["👑", "🥈", "🥉"];
+function renderText(text: string): string {
+  if (!text) return "";
+  let r = text;
+  r = r.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => {
+    try { return `<span style="display:block;text-align:center;margin:6px 0">${katex.renderToString(m.trim(), { displayMode: true, throwOnError: false })}</span>`; }
+    catch { return m; }
+  });
+  r = r.replace(/\$(.+?)\$/g, (_, m) => {
+    try { return katex.renderToString(m.trim(), { throwOnError: false }); }
+    catch { return m; }
+  });
+  r = r.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  return r;
+}
+
+const fmtTime = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}:${String(sec).padStart(2, "0")}` : `0:${String(sec).padStart(2, "0")}`;
+};
+
+const fmtSubject = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+const RANK_DISPLAY = ["🥇", "🥈", "🥉"];
 
 export default function ChallengePage() {
   const router = useRouter();
   const [data, setData] = useState<ChallengeData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState<"intro" | "playing" | "result">("intro");
+  const [phase, setPhase] = useState<"intro" | "playing" | "submitting" | "result">("intro");
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [animateScore, setAnimateScore] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTime = useRef(0);
 
@@ -100,11 +116,7 @@ export default function ChallengePage() {
           setData(d);
           if (d.completed) setPhase("result");
         }
-      } catch {
-        console.error("Failed to load challenge");
-      } finally {
-        setLoading(false);
-      }
+      } catch {} finally { setLoading(false); }
     }
     load();
   }, []);
@@ -114,26 +126,34 @@ export default function ChallengePage() {
     setPhase("playing");
     setTimeLeft(data.challenge.timeLimit);
     startTime.current = Date.now();
-
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          submitChallenge();
-          return 0;
-        }
+        if (prev <= 1) { submitChallenge(); return 0; }
         return prev - 1;
       });
     }, 1000);
   };
 
   const selectOption = (questionId: string, option: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: option }));
+    const current = answers[questionId];
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: current === option ? undefined! : option,
+    }));
+    // Filter out undefined
+    if (current === option) {
+      setAnswers((prev) => {
+        const next = { ...prev };
+        delete next[questionId];
+        return next;
+      });
+    }
   };
 
   const submitChallenge = useCallback(async () => {
     if (!data || submitting) return;
     setSubmitting(true);
-
+    setPhase("submitting");
     if (timerRef.current) clearInterval(timerRef.current);
 
     const timeTaken = Math.round((Date.now() - startTime.current) / 1000);
@@ -148,29 +168,39 @@ export default function ChallengePage() {
           timeTaken,
         }),
       });
-
       const r = await res.json();
       if (res.ok) {
         setResult(r);
         setPhase("result");
+        setTimeout(() => setAnimateScore(true), 300);
+      } else {
+        setPhase("playing");
       }
     } catch {
-      console.error("Submit failed");
+      setPhase("playing");
     } finally {
       setSubmitting(false);
     }
   }, [data, answers, submitting]);
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  const handleShare = async () => {
+    if (!data || !displayResult) return;
+    const text = `Daily JAMB Challenge: ${displayResult.score}/${displayResult.totalQuestions} (${displayResult.accuracy}%) in ${fmtTime(displayResult.timeTaken)}\n\nRank #${displayResult.rank} today\n\nTry it on JambOS`;
+    if (navigator.share) {
+      try { await navigator.share({ text, title: data.challenge.title }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--color-surface)" }}>
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-accent-green)" }} />
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "#f7f7f8" }}>
+        <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#bbb" }} />
       </div>
     );
   }
@@ -178,93 +208,131 @@ export default function ChallengePage() {
   if (!data) return null;
 
   const { challenge, questions, leaderboard } = data;
-  const formatSubject = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  const isTimeLow = timeLeft < 30;
+  const answered = Object.keys(answers).length;
+  const isTimeLow = timeLeft > 0 && timeLeft < 30;
+  const timePercent = challenge.timeLimit > 0 ? (timeLeft / challenge.timeLimit) * 100 : 100;
 
-  // ════ INTRO ════
+  // ═══════════ INTRO ═══════════
   if (phase === "intro") {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: "var(--color-surface)" }}>
-        <div className="w-full max-w-md">
-          <button onClick={() => router.push("/dashboard")} className="btn-ghost mb-6">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
-          </button>
-
-          <div className="card p-6 text-center" style={{ boxShadow: "var(--shadow-glow)" }}>
-            <div
-              className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ background: "rgba(34,197,94,0.1)" }}
-            >
-              <Zap className="h-8 w-8" style={{ color: "var(--color-accent-green)" }} />
-            </div>
-
-            <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "var(--color-text-primary)" }}>
-              {challenge.title}
-            </h1>
-
-            <p className="mt-2 text-sm" style={{ color: "var(--color-text-tertiary)", lineHeight: 1.6 }}>
-              {challenge.description}
-            </p>
-
-            <div className="grid grid-cols-3 gap-3 mt-6 mb-6">
-              <div className="stat-card text-center py-3">
-                <p className="stat-value" style={{ fontSize: "1.25rem" }}>{challenge.totalQuestions}</p>
-                <p className="stat-label">Questions</p>
-              </div>
-              <div className="stat-card text-center py-3">
-                <p className="stat-value" style={{ fontSize: "1.25rem" }}>{formatTime(challenge.timeLimit)}</p>
-                <p className="stat-label">Time Limit</p>
-              </div>
-              <div className="stat-card text-center py-3">
-                <p className="stat-value" style={{ fontSize: "1.25rem", color: "var(--color-accent-green)" }}>+{challenge.xpReward}</p>
-                <p className="stat-label">XP Reward</p>
-              </div>
-            </div>
-
-            <button onClick={startChallenge} className="btn-primary w-full" style={{ padding: "1rem", fontSize: "1rem" }}>
-              <Zap className="h-5 w-5" />
-              Start Challenge
+      <div className="min-h-screen" style={{ background: "#f7f7f8" }}>
+        {/* Header */}
+        <header className="sticky top-0 z-30" style={{ background: "rgba(247,247,248,0.92)", backdropFilter: "blur(16px)", borderBottom: "1px solid #ebebeb" }}>
+          <div className="mx-auto flex h-12 max-w-lg items-center justify-between px-4">
+            <button onClick={() => router.push("/dashboard")} style={{ color: "#888" }}>
+              <ArrowLeft className="h-4 w-4" />
             </button>
+            <span className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Daily Challenge</span>
+            <div className="w-8" />
+          </div>
+        </header>
 
-            <p className="mt-3 text-[0.625rem]" style={{ color: "var(--color-text-muted)" }}>
-              Top 10% scorers earn {challenge.bonusXP} bonus XP
-            </p>
+        <div className="mx-auto max-w-lg px-4 pt-8 pb-12">
+          {/* Hero card */}
+          <div className="rounded-2xl overflow-hidden mb-5" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+            {/* Top accent */}
+            <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)" }}>
+              <div className="absolute inset-0 opacity-10" style={{ background: "radial-gradient(circle at 30% 20%, #6366f1, transparent 50%), radial-gradient(circle at 70% 80%, #22c55e, transparent 50%)" }} />
+              <div className="relative">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
+                  style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  <Zap className="h-7 w-7" style={{ color: "#fbbf24" }} />
+                </div>
+                <h1 style={{ fontSize: "1.375rem", fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>
+                  {challenge.title}
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  {challenge.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 divide-x" style={{ borderTop: "1px solid #f0f0f0", divideColor: "#f0f0f0" } as any}>
+              {[
+                { icon: Target, label: "Questions", value: String(challenge.totalQuestions), color: "#6366f1" },
+                { icon: Timer, label: "Time", value: fmtTime(challenge.timeLimit), color: "#f59e0b" },
+                { icon: Zap, label: "XP Reward", value: `+${challenge.xpReward}`, color: "#22c55e" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="py-4 text-center">
+                  <Icon className="mx-auto mb-1.5 h-4 w-4" style={{ color, opacity: 0.7 }} />
+                  <p className="text-lg font-bold" style={{ color: "#1a1a1a", fontFamily: "var(--font-mono)", letterSpacing: "-0.02em" }}>{value}</p>
+                  <p className="text-[0.625rem] mt-0.5" style={{ color: "#bbb" }}>{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Subject + topic */}
+            <div className="px-6 py-4" style={{ background: "#fafafa", borderTop: "1px solid #f0f0f0" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[0.625rem] font-semibold uppercase tracking-wider" style={{ color: "#bbb" }}>Subject</p>
+                  <p className="text-sm font-semibold mt-0.5" style={{ color: "#1a1a1a" }}>{fmtSubject(challenge.subject)}</p>
+                </div>
+                {challenge.topicName && (
+                  <div className="text-right">
+                    <p className="text-[0.625rem] font-semibold uppercase tracking-wider" style={{ color: "#bbb" }}>Topic</p>
+                    <p className="text-sm font-semibold mt-0.5" style={{ color: "#1a1a1a" }}>{challenge.topicName}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div className="px-6 py-5">
+              <button onClick={startChallenge}
+                className="w-full flex items-center justify-center gap-2.5 rounded-xl py-3.5 text-sm font-semibold transition-all"
+                style={{ background: "#1a1a1a", color: "#fff" }}>
+                <Zap className="h-4 w-4" style={{ color: "#fbbf24" }} />
+                Start Challenge
+              </button>
+              {challenge.bonusXP > 0 && (
+                <p className="text-center mt-2.5 text-[0.6875rem]" style={{ color: "#bbb" }}>
+                  Top 10% earn <span style={{ color: "#f59e0b", fontWeight: 600 }}>+{challenge.bonusXP} bonus XP</span>
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Today's leaderboard */}
+          {/* Leaderboard */}
           {leaderboard.length > 0 && (
-            <div className="card mt-6 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Trophy className="h-4 w-4" style={{ color: "var(--color-warning-400)" }} />
-                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                  Today&apos;s Leaderboard
-                </p>
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                  ({data.totalAttempts} played)
+            <div className="rounded-2xl p-5" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4" style={{ color: "#f59e0b" }} />
+                  <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Leaderboard</p>
+                </div>
+                <span className="text-[0.6875rem] rounded-lg px-2 py-0.5" style={{ background: "#f5f5f5", color: "#999" }}>
+                  {data.totalAttempts} played
                 </span>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {leaderboard.slice(0, 10).map((entry) => (
-                  <div
-                    key={entry.rank}
-                    className="flex items-center gap-2 rounded-lg p-2"
+                  <div key={entry.rank} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors"
                     style={{
-                      background: entry.isCurrentUser ? "rgba(34,197,94,0.06)" : "transparent",
-                      border: entry.isCurrentUser ? "1px solid rgba(34,197,94,0.2)" : "1px solid transparent",
-                    }}
-                  >
-                    <span className="w-6 text-center text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
-                      {entry.rank <= 3 ? RANK_ICONS[entry.rank - 1] : entry.rank}
+                      background: entry.isCurrentUser ? "#f0fdf4" : "transparent",
+                      border: entry.isCurrentUser ? "1px solid #dcfce7" : "1px solid transparent",
+                    }}>
+                    <span className="w-7 text-center text-sm" style={{ fontFamily: "var(--font-mono)" }}>
+                      {entry.rank <= 3 ? RANK_DISPLAY[entry.rank - 1] : (
+                        <span className="text-xs font-bold" style={{ color: "#ccc" }}>{entry.rank}</span>
+                      )}
                     </span>
-                    <span className="flex-1 text-sm truncate" style={{ color: entry.isCurrentUser ? "var(--color-accent-green)" : "var(--color-text-secondary)" }}>
-                      {entry.name}
-                    </span>
-                    <span className="text-xs font-semibold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-green)" }}>
-                      {entry.accuracy}%
-                    </span>
-                    <span className="text-[0.5625rem]" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
-                      {formatTime(entry.timeTaken)}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate"
+                        style={{ color: entry.isCurrentUser ? "#16a34a" : "#1a1a1a" }}>
+                        {entry.name}
+                        {entry.isCurrentUser && <span className="text-xs ml-1" style={{ color: "#22c55e" }}>(You)</span>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: entry.accuracy >= 80 ? "#16a34a" : entry.accuracy >= 50 ? "#d97706" : "#999" }}>
+                        {entry.accuracy}%
+                      </span>
+                      <span className="text-[0.625rem]" style={{ fontFamily: "var(--font-mono)", color: "#ccc" }}>
+                        {fmtTime(entry.timeTaken)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -275,158 +343,189 @@ export default function ChallengePage() {
     );
   }
 
-  // ════ PLAYING ════
-  if (phase === "playing" && questions.length > 0) {
-    const q = questions[currentQ];
-    const answered = Object.keys(answers).length;
-
+  // ═══════════ SUBMITTING ═══════════
+  if (phase === "submitting") {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: "var(--color-surface)" }}>
-        {/* Header */}
-        <div
-          className="sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
-          style={{
-            background: "var(--color-surface-card)",
-            borderBottom: "1px solid var(--color-surface-border)",
-          }}
-        >
-          <span className="text-sm font-mono" style={{ color: "var(--color-text-tertiary)" }}>
-            {currentQ + 1}/{questions.length}
-          </span>
-
-          <div
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5"
-            style={{
-              background: isTimeLow ? "rgba(239,68,68,0.1)" : "var(--color-surface-lighter)",
-              border: `1px solid ${isTimeLow ? "rgba(239,68,68,0.3)" : "var(--color-surface-border)"}`,
-            }}
-          >
-            <Clock className="h-3.5 w-3.5" style={{ color: isTimeLow ? "var(--color-danger-400)" : "var(--color-text-tertiary)" }} />
-            <span
-              className="font-mono text-sm font-semibold"
-              style={{ color: isTimeLow ? "var(--color-danger-400)" : "var(--color-text-primary)" }}
-            >
-              {formatTime(timeLeft)}
-            </span>
-          </div>
-
-          <button
-            onClick={submitChallenge}
-            disabled={submitting}
-            className="btn-primary"
-            style={{ padding: "0.375rem 0.75rem", fontSize: "0.75rem" }}
-          >
-            {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Submit"}
-          </button>
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ height: "3px", background: "var(--color-surface-lighter)" }}>
-          <div
-            style={{
-              width: `${((currentQ + 1) / questions.length) * 100}%`,
-              height: "100%",
-              background: "var(--color-accent-green)",
-              transition: "width 0.3s",
-            }}
-          />
-        </div>
-
-        {/* Question */}
-        <div className="flex-1 flex items-center justify-center px-4 py-8">
-          <div className="w-full max-w-lg" key={q.id} style={{ animation: "var(--animate-fade-in)" }}>
-            <p className="text-base leading-relaxed mb-6" style={{ color: "var(--color-text-primary)" }}>
-              {q.body}
-            </p>
-
-            <div className="space-y-2">
-              {(["A", "B", "C", "D"] as const).map((key) => {
-                const optionKey = `option${key}` as "optionA" | "optionB" | "optionC" | "optionD";
-                const isSelected = answers[q.id] === key;
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => selectOption(q.id, key)}
-                    className="flex w-full items-start gap-3 rounded-xl p-4 text-left transition-all"
-                    style={{
-                      background: isSelected ? "rgba(34,197,94,0.08)" : "var(--color-surface-light)",
-                      border: `1.5px solid ${isSelected ? "var(--color-accent-green)" : "var(--color-surface-border)"}`,
-                      boxShadow: isSelected ? "var(--shadow-glow)" : "none",
-                    }}
-                  >
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold"
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        background: isSelected ? "var(--color-accent-green)" : "var(--color-surface-lighter)",
-                        color: isSelected ? "var(--color-surface)" : "var(--color-text-muted)",
-                      }}
-                    >
-                      {key}
-                    </span>
-                    <span className="text-sm leading-relaxed pt-0.5" style={{ color: "var(--color-text-secondary)" }}>
-                      {(q as any)[optionKey]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Nav */}
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => setCurrentQ((i) => Math.max(0, i - 1))}
-                disabled={currentQ <= 0}
-                className="btn-secondary"
-                style={{ opacity: currentQ <= 0 ? 0.3 : 1 }}
-              >
-                Previous
-              </button>
-              {currentQ < questions.length - 1 ? (
-                <button
-                  onClick={() => setCurrentQ((i) => i + 1)}
-                  className="btn-primary"
-                >
-                  Next <ChevronRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  onClick={submitChallenge}
-                  disabled={submitting}
-                  className="btn-primary"
-                >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Finish"}
-                </button>
-              )}
-            </div>
-
-            {/* Quick nav dots */}
-            <div className="flex justify-center gap-1.5 mt-6">
-              {questions.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentQ(i)}
-                  className="rounded-full transition-all"
-                  style={{
-                    width: i === currentQ ? "20px" : "8px",
-                    height: "8px",
-                    background: answers[questions[i].id]
-                      ? "var(--color-accent-green)"
-                      : i === currentQ
-                      ? "var(--color-accent-dim)"
-                      : "var(--color-surface-border)",
-                  }}
-                />
-              ))}
+      <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "#f7f7f8" }}>
+        <div className="rounded-2xl p-10 max-w-sm w-full text-center" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+          <div className="relative inline-flex items-center justify-center mb-5">
+            <svg width="72" height="72" viewBox="0 0 72 72" className="animate-spin" style={{ animationDuration: "2s" }}>
+              <circle cx="36" cy="36" r="30" fill="none" stroke="#f0f0f0" strokeWidth="3.5" />
+              <circle cx="36" cy="36" r="30" fill="none" stroke="#6366f1" strokeWidth="3.5" strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 30}`} strokeDashoffset={2 * Math.PI * 30 * 0.72} />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <BarChart3 className="h-5 w-5" style={{ color: "#6366f1" }} />
             </div>
           </div>
+          <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Calculating your score...</p>
+          <p className="text-xs mt-1" style={{ color: "#999" }}>Checking answers and updating rankings</p>
         </div>
       </div>
     );
   }
 
-  // ════ RESULT ════
+  // ═══════════ PLAYING ═══════════
+  if (phase === "playing" && questions.length > 0) {
+    const q = questions[currentQ];
+
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: "#f7f7f8" }}>
+        {/* Header */}
+        <header className="sticky top-0 z-30" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(16px)", borderBottom: "1px solid #ebebeb" }}>
+          <div className="mx-auto max-w-lg px-4">
+            <div className="flex items-center justify-between h-12">
+              {/* Timer */}
+              <div className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+                style={{
+                  background: isTimeLow ? "#fef2f2" : "#f5f5f5",
+                  border: `1px solid ${isTimeLow ? "#fecaca" : "transparent"}`,
+                }}>
+                <Clock className="h-3.5 w-3.5" style={{ color: isTimeLow ? "#ef4444" : "#888" }} />
+                <span className="text-sm font-bold" style={{
+                  fontFamily: "var(--font-mono)",
+                  color: isTimeLow ? "#ef4444" : "#1a1a1a",
+                }}>
+                  {fmtTime(timeLeft)}
+                </span>
+              </div>
+
+              {/* Progress */}
+              <span className="text-xs font-semibold" style={{ color: "#bbb" }}>
+                <span style={{ color: "#1a1a1a", fontFamily: "var(--font-mono)" }}>{answered}</span>/{questions.length} answered
+              </span>
+
+              {/* Submit */}
+              <button onClick={submitChallenge} disabled={submitting}
+                className="rounded-xl px-4 py-1.5 text-xs font-semibold"
+                style={{ background: "#1a1a1a", color: "#fff" }}>
+                Submit
+              </button>
+            </div>
+
+            {/* Time progress bar */}
+            <div style={{ height: "3px", background: "#f0f0f0", marginBottom: "-1px" }}>
+              <div style={{
+                width: `${timePercent}%`,
+                height: "100%",
+                background: isTimeLow ? "#ef4444" : timePercent < 50 ? "#f59e0b" : "#22c55e",
+                transition: "width 1s linear, background 0.3s",
+                borderRadius: "0 2px 2px 0",
+              }} />
+            </div>
+          </div>
+        </header>
+
+        {/* Question */}
+        <main className="flex-1 mx-auto max-w-lg w-full px-4 pt-6 pb-28">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs font-bold rounded-lg px-2.5 py-1"
+              style={{ fontFamily: "var(--font-mono)", background: "#f0f0f0", color: "#888" }}>
+              Q{currentQ + 1}
+            </span>
+            <span className="text-[0.6875rem]" style={{ color: "#bbb" }}>
+              {q.topic?.name || ""}
+            </span>
+            <span className="ml-auto text-[0.625rem] font-semibold rounded-md px-1.5 py-0.5" style={{
+              background: q.difficulty === "EASY" ? "#f0fdf4" : q.difficulty === "HARD" ? "#fef2f2" : "#fffbeb",
+              color: q.difficulty === "EASY" ? "#16a34a" : q.difficulty === "HARD" ? "#ef4444" : "#d97706",
+            }}>
+              {q.difficulty.charAt(0) + q.difficulty.slice(1).toLowerCase()}
+            </span>
+          </div>
+
+          {/* Question body */}
+          <div className="rounded-2xl p-5 mb-5" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+            <div className="text-[0.9375rem] leading-[1.8]" style={{ color: "#1a1a1a" }}
+              dangerouslySetInnerHTML={{ __html: renderText(q.body) }} />
+            {q.imageUrl && (
+              <div className="mt-3 rounded-xl overflow-hidden" style={{ border: "1px solid #f0f0f0" }}>
+                <img src={q.imageUrl} alt="" className="w-full max-h-52 object-contain p-3" />
+              </div>
+            )}
+          </div>
+
+          {/* Options */}
+          <div className="space-y-2.5">
+            {(["A", "B", "C", "D"] as const).map((key) => {
+              const text = (q as any)[`option${key}`];
+              const isSelected = answers[q.id] === key;
+              return (
+                <button key={key} onClick={() => selectOption(q.id, key)}
+                  className="w-full flex items-center gap-3.5 rounded-xl p-4 text-left transition-all"
+                  style={{
+                    background: isSelected ? "#eef2ff" : "#fff",
+                    border: `1.5px solid ${isSelected ? "#6366f1" : "#eaeaea"}`,
+                    boxShadow: isSelected ? "0 0 0 1px rgba(99,102,241,0.1)" : "none",
+                  }}>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      background: isSelected ? "#6366f1" : "#f5f5f5",
+                      color: isSelected ? "#fff" : "#999",
+                    }}>
+                    {key}
+                  </span>
+                  <span className="text-sm leading-relaxed flex-1"
+                    style={{ color: isSelected ? "#1a1a1a" : "#555" }}
+                    dangerouslySetInnerHTML={{ __html: renderText(text) }} />
+                </button>
+              );
+            })}
+          </div>
+        </main>
+
+        {/* Bottom nav */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(16px)", borderTop: "1px solid #ebebeb" }}>
+          <div className="mx-auto max-w-lg px-4 py-3">
+            {/* Dots */}
+            <div className="flex justify-center gap-1.5 mb-3">
+              {questions.map((qq, i) => (
+                <button key={i} onClick={() => setCurrentQ(i)}
+                  className="rounded-full transition-all"
+                  style={{
+                    width: i === currentQ ? "22px" : "8px",
+                    height: "8px",
+                    background: answers[qq.id]
+                      ? "#22c55e"
+                      : i === currentQ
+                      ? "#6366f1"
+                      : "#e0e0e0",
+                    transition: "all 0.2s ease",
+                  }} />
+              ))}
+            </div>
+
+            {/* Prev / Next */}
+            <div className="flex items-center justify-between">
+              <button onClick={() => setCurrentQ((i) => Math.max(0, i - 1))}
+                disabled={currentQ === 0}
+                className="flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold"
+                style={{ background: "#f5f5f5", color: currentQ === 0 ? "#ddd" : "#555" }}>
+                <ChevronLeft className="h-4 w-4" /> Prev
+              </button>
+
+              {currentQ < questions.length - 1 ? (
+                <button onClick={() => setCurrentQ((i) => i + 1)}
+                  className="flex items-center gap-1 rounded-xl px-4 py-2.5 text-xs font-semibold"
+                  style={{ background: "#1a1a1a", color: "#fff" }}>
+                  Next <ChevronRight className="h-4 w-4" />
+                </button>
+              ) : (
+                <button onClick={submitChallenge} disabled={submitting}
+                  className="flex items-center gap-1 rounded-xl px-5 py-2.5 text-xs font-semibold"
+                  style={{ background: "#22c55e", color: "#fff" }}>
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Finish <CheckCircle2 className="h-4 w-4" /></>}
+                </button>
+              )}
+            </div>
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
+  // ═══════════ RESULT ═══════════
   const displayResult = result || (data.myAttempt ? {
     score: data.myAttempt.score,
     totalQuestions: challenge.totalQuestions,
@@ -441,105 +540,199 @@ export default function ChallengePage() {
 
   if (!displayResult) return null;
 
+  const scoreColor = displayResult.accuracy >= 80 ? "#22c55e"
+    : displayResult.accuracy >= 50 ? "#f59e0b" : "#ef4444";
+  const scoreEmoji = displayResult.isPerfect ? "🎯" : displayResult.accuracy >= 80 ? "🔥" : displayResult.accuracy >= 50 ? "💪" : "📖";
+  const scoreVerdict = displayResult.isPerfect ? "Perfect score!"
+    : displayResult.accuracy >= 80 ? "Outstanding performance!"
+    : displayResult.accuracy >= 50 ? "Solid effort, keep going!"
+    : "Room to grow. Review and retry!";
+
+  const circumference = 2 * Math.PI * 54;
+  const scoreOffset = circumference - (displayResult.accuracy / 100) * circumference;
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8" style={{ background: "var(--color-surface)" }}>
-      <div className="w-full max-w-md">
-        <div className="card p-6 text-center" style={{ boxShadow: "var(--shadow-glow)", animation: "var(--animate-scale-in)" }}>
-          {/* Emoji reaction */}
-          <div className="text-5xl mb-4">
-            {displayResult.isPerfect ? "🎯" : displayResult.accuracy >= 80 ? "🔥" : displayResult.accuracy >= 50 ? "💪" : "📚"}
+    <div className="min-h-screen pb-12" style={{ background: "#f7f7f8" }}>
+      <header className="sticky top-0 z-30" style={{ background: "rgba(247,247,248,0.92)", backdropFilter: "blur(16px)", borderBottom: "1px solid #ebebeb" }}>
+        <div className="mx-auto flex h-12 max-w-lg items-center justify-between px-4">
+          <button onClick={() => router.push("/dashboard")} style={{ color: "#888" }}>
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Challenge Results</span>
+          <button onClick={handleShare} style={{ color: "#888" }}>
+            <Share2 className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-lg px-4 pt-6">
+        {/* Score card */}
+        <div className="rounded-2xl overflow-hidden mb-5" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+          <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)" }}>
+            <div className="absolute inset-0 opacity-10" style={{ background: `radial-gradient(circle at 50% 50%, ${scoreColor}, transparent 60%)` }} />
+
+            {/* Emoji */}
+            <div className="text-4xl mb-3">{scoreEmoji}</div>
+
+            {/* Score ring */}
+            <div className="relative inline-flex items-center justify-center mb-4">
+              <svg width="132" height="132" viewBox="0 0 132 132">
+                <circle cx="66" cy="66" r="54" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
+                <circle cx="66" cy="66" r="54" fill="none"
+                  stroke={scoreColor} strokeWidth="6" strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={animateScore ? scoreOffset : circumference}
+                  style={{ transition: "stroke-dashoffset 1.2s ease-out", transform: "rotate(-90deg)", transformOrigin: "center" }} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold" style={{ color: "#fff", fontFamily: "var(--font-mono)", letterSpacing: "-0.03em" }}>
+                  {displayResult.score}/{displayResult.totalQuestions}
+                </span>
+                <span className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  {displayResult.accuracy}%
+                </span>
+              </div>
+            </div>
+
+            <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+              {scoreVerdict}
+            </p>
           </div>
 
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "var(--color-text-primary)" }}>
-            {displayResult.isPerfect
-              ? "Perfect Score!"
-              : displayResult.accuracy >= 80
-              ? "Excellent!"
-              : displayResult.accuracy >= 50
-              ? "Good effort!"
-              : "Keep practicing!"}
-          </h2>
-
-          <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-            {challenge.title}
-          </p>
-
-          {/* Score circle */}
-          <div className="my-6">
-            <p
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: "4rem",
-                lineHeight: 1,
-                color:
-                  displayResult.accuracy >= 80
-                    ? "var(--color-accent-green)"
-                    : displayResult.accuracy >= 50
-                    ? "var(--color-warning-400)"
-                    : "var(--color-danger-400)",
-              }}
-            >
-              {displayResult.score}/{displayResult.totalQuestions}
-            </p>
-            <p className="text-sm mt-1" style={{ color: "var(--color-text-tertiary)" }}>
-              {displayResult.accuracy}% accuracy · {formatTime(displayResult.timeTaken)}
-            </p>
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 divide-x" style={{ borderTop: "1px solid #f0f0f0" } as any}>
+            {[
+              { icon: Timer, label: "Time", value: fmtTime(displayResult.timeTaken), color: "#6366f1" },
+              { icon: Trophy, label: "Rank", value: `#${displayResult.rank}`, color: "#f59e0b" },
+              { icon: Zap, label: "XP Earned", value: `+${displayResult.xpEarned}`, color: "#22c55e" },
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="py-4 text-center">
+                <Icon className="mx-auto mb-1 h-3.5 w-3.5" style={{ color, opacity: 0.7 }} />
+                <p className="text-base font-bold" style={{ color: "#1a1a1a", fontFamily: "var(--font-mono)" }}>{value}</p>
+                <p className="text-[0.625rem]" style={{ color: "#bbb" }}>{label}</p>
+              </div>
+            ))}
           </div>
 
           {/* Badges */}
-          <div className="flex justify-center gap-2 mb-6">
-            <span className="badge badge-green">+{displayResult.xpEarned} XP</span>
-            {displayResult.rank && (
-              <span className="badge badge-info">#{displayResult.rank} today</span>
-            )}
-            {displayResult.isPerfect && (
-              <span className="badge" style={{ background: "rgba(167,139,250,0.1)", color: "var(--color-tier-elite)", border: "1px solid rgba(167,139,250,0.2)" }}>
-                Flawless
-              </span>
-            )}
-            {displayResult.isTopTen && (
-              <span className="badge" style={{ background: "rgba(245,158,11,0.1)", color: "var(--color-warning-400)", border: "1px solid rgba(245,158,11,0.2)" }}>
-                Top 10%
-              </span>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col gap-2">
-            <ShareButton type="test" label="Share Result" variant="primary" />
-            <button onClick={() => router.push("/dashboard")} className="btn-secondary w-full">
-              Back to Dashboard
-            </button>
-          </div>
+          {(displayResult.isPerfect || displayResult.isTopTen) && (
+            <div className="flex items-center justify-center gap-2 px-6 py-3" style={{ background: "#fafafa", borderTop: "1px solid #f0f0f0" }}>
+              {displayResult.isPerfect && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5"
+                  style={{ background: "#faf5ff", color: "#7c3aed", border: "1px solid #e9d5ff" }}>
+                  <Award className="h-3.5 w-3.5" /> Flawless
+                </span>
+              )}
+              {displayResult.isTopTen && (
+                <span className="flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5"
+                  style={{ background: "#fffbeb", color: "#d97706", border: "1px solid #fde68a" }}>
+                  <Flame className="h-3.5 w-3.5" /> Top 10%
+                </span>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Review toggle */}
+        {result?.correctAnswers && Object.keys(result.correctAnswers).length > 0 && (
+          <button onClick={() => setShowReview(!showReview)}
+            className="w-full rounded-2xl p-4 mb-5 flex items-center justify-between"
+            style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "#eef2ff" }}>
+                <TrendingUp className="h-4 w-4" style={{ color: "#6366f1" }} />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Review Answers</p>
+                <p className="text-[0.6875rem]" style={{ color: "#bbb" }}>See what you got right and wrong</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4" style={{ color: "#ccc", transform: showReview ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+          </button>
+        )}
+
+        {/* Review */}
+        {showReview && result?.correctAnswers && (
+          <div className="space-y-3 mb-5">
+            {questions.map((q, i) => {
+              const userAnswer = answers[q.id];
+              const correctAnswer = result.correctAnswers[q.id];
+              const isCorrect = userAnswer === correctAnswer;
+              return (
+                <div key={q.id} className="rounded-2xl p-4" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+                  <div className="flex items-start gap-2.5 mb-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[0.6875rem] font-bold"
+                      style={{
+                        background: isCorrect ? "#f0fdf4" : !userAnswer ? "#f5f5f5" : "#fef2f2",
+                        color: isCorrect ? "#16a34a" : !userAnswer ? "#999" : "#dc2626",
+                        fontFamily: "var(--font-mono)",
+                      }}>
+                      {i + 1}
+                    </span>
+                    <p className="text-sm leading-relaxed pt-0.5" style={{ color: "#1a1a1a" }}
+                      dangerouslySetInnerHTML={{ __html: renderText(q.body.length > 150 ? q.body.slice(0, 150) + "..." : q.body) }} />
+                  </div>
+                  <div className="ml-8 space-y-1.5">
+                    {(["A", "B", "C", "D"] as const).map((key) => {
+                      const isUserPick = userAnswer === key;
+                      const isRight = correctAnswer === key;
+                      let bg = "transparent";
+                      let borderColor = "transparent";
+                      let textColor = "#888";
+                      if (isRight) { bg = "#f0fdf4"; borderColor = "#dcfce7"; textColor = "#166534"; }
+                      else if (isUserPick && !isRight) { bg = "#fef2f2"; borderColor = "#fee2e2"; textColor = "#991b1b"; }
+                      return (
+                        <div key={key} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                          style={{ background: bg, border: `1px solid ${borderColor}`, color: textColor }}>
+                          <span className="font-bold w-4" style={{ fontFamily: "var(--font-mono)" }}>{key}</span>
+                          <span className="flex-1" dangerouslySetInnerHTML={{ __html: renderText((q as any)[`option${key}`]) }} />
+                          {isRight && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: "#22c55e" }} />}
+                          {isUserPick && !isRight && <XCircle className="h-3.5 w-3.5 shrink-0" style={{ color: "#ef4444" }} />}
+                        </div>
+                      );
+                    })}
+                    {!userAnswer && (
+                      <p className="text-[0.6875rem] italic ml-1" style={{ color: "#ccc" }}>Not answered</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Leaderboard */}
         {leaderboard.length > 0 && (
-          <div className="card mt-6 p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Trophy className="h-4 w-4" style={{ color: "var(--color-warning-400)" }} />
-              <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                Today&apos;s Rankings
-              </p>
+          <div className="rounded-2xl p-5 mb-5" style={{ background: "#fff", border: "1px solid #eaeaea" }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="h-4 w-4" style={{ color: "#f59e0b" }} />
+              <p className="text-sm font-semibold" style={{ color: "#1a1a1a" }}>Today's Rankings</p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {leaderboard.slice(0, 10).map((entry) => (
-                <div
-                  key={entry.rank}
-                  className="flex items-center gap-2 rounded-lg p-2"
+                <div key={entry.rank} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5"
                   style={{
-                    background: entry.isCurrentUser ? "rgba(34,197,94,0.06)" : "transparent",
-                    border: entry.isCurrentUser ? "1px solid rgba(34,197,94,0.2)" : "1px solid transparent",
-                  }}
-                >
-                  <span className="w-6 text-center text-xs font-bold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
-                    {entry.rank <= 3 ? RANK_ICONS[entry.rank - 1] : entry.rank}
+                    background: entry.isCurrentUser ? "#f0fdf4" : "transparent",
+                    border: entry.isCurrentUser ? "1px solid #dcfce7" : "1px solid transparent",
+                  }}>
+                  <span className="w-7 text-center text-sm" style={{ fontFamily: "var(--font-mono)" }}>
+                    {entry.rank <= 3 ? RANK_DISPLAY[entry.rank - 1] : (
+                      <span className="text-xs font-bold" style={{ color: "#ccc" }}>{entry.rank}</span>
+                    )}
                   </span>
-                  <span className="flex-1 text-sm truncate" style={{ color: entry.isCurrentUser ? "var(--color-accent-green)" : "var(--color-text-secondary)" }}>
-                    {entry.name} {entry.isCurrentUser && "(You)"}
-                  </span>
-                  <span className="text-xs font-semibold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-accent-green)" }}>
+                  <p className="flex-1 text-sm font-medium truncate"
+                    style={{ color: entry.isCurrentUser ? "#16a34a" : "#1a1a1a" }}>
+                    {entry.name}
+                    {entry.isCurrentUser && <span className="text-xs ml-1" style={{ color: "#22c55e" }}>(You)</span>}
+                  </p>
+                  <span className="text-xs font-bold" style={{
+                    fontFamily: "var(--font-mono)",
+                    color: entry.accuracy >= 80 ? "#16a34a" : entry.accuracy >= 50 ? "#d97706" : "#999",
+                  }}>
                     {entry.accuracy}%
+                  </span>
+                  <span className="text-[0.625rem]" style={{ fontFamily: "var(--font-mono)", color: "#ccc" }}>
+                    {fmtTime(entry.timeTaken)}
                   </span>
                 </div>
               ))}
@@ -547,11 +740,28 @@ export default function ChallengePage() {
           </div>
         )}
 
-        <footer className="mt-8 text-center">
-          <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>
-            New challenge every day at midnight
-          </p>
-        </footer>
+        {/* Actions */}
+        <div className="flex gap-2 mb-3">
+          <button onClick={handleShare}
+            className="flex-1 rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2"
+            style={{ background: "#fff", border: "1px solid #eaeaea", color: "#555" }}>
+            <Share2 className="h-4 w-4" /> Share
+          </button>
+          <button onClick={() => router.push("/practice")}
+            className="flex-1 rounded-xl py-3 text-sm font-semibold flex items-center justify-center gap-2"
+            style={{ background: "#fff", border: "1px solid #eaeaea", color: "#555" }}>
+            <Target className="h-4 w-4" /> Practice
+          </button>
+        </div>
+        <button onClick={() => router.push("/dashboard")}
+          className="w-full rounded-xl py-3.5 text-sm font-semibold flex items-center justify-center gap-2"
+          style={{ background: "#1a1a1a", color: "#fff" }}>
+          <Home className="h-4 w-4" /> Dashboard
+        </button>
+
+        <p className="text-center mt-4 text-[0.6875rem]" style={{ color: "#ccc" }}>
+          New challenge every day at midnight
+        </p>
       </div>
     </div>
   );
