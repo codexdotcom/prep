@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import {
-  Plus, Loader2, Zap, Calendar, Users, X, Search, Check,
-} from "lucide-react";
+import { Plus, Loader2, Zap, Calendar, X, Search, Check, Edit3, Trash2 } from "lucide-react";
 import { JAMB_SUBJECTS } from "@/lib/data/nigerian-states";
 
 interface Challenge {
@@ -27,16 +25,19 @@ interface QuestionOption { id: string; body: string; difficulty: string; topic: 
 
 const fmt = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+const getDiffStyle = (d: string) => {
+  if (d === "EASY") return { color: "var(--color-accent-green)", bg: "rgba(34,197,94,0.1)" };
+  if (d === "HARD") return { color: "var(--color-danger-400)", bg: "rgba(239,68,68,0.1)" };
+  return { color: "var(--color-warning-400)", bg: "rgba(245,158,11,0.1)" };
+};
+
 export default function AdminChallengesPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Form state
-  const [formDate, setFormDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  });
+  const [formDate, setFormDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; });
   const [formSubject, setFormSubject] = useState("");
   const [formTopicId, setFormTopicId] = useState("");
   const [formTitle, setFormTitle] = useState("");
@@ -65,17 +66,15 @@ export default function AdminChallengesPage() {
 
   useEffect(() => { fetchChallenges(); }, [fetchChallenges]);
 
-  // Load topics when subject changes
   useEffect(() => {
     if (!formSubject) { setTopics([]); setFormTopicId(""); return; }
     fetch(`/api/admin/topics?subject=${formSubject}`)
       .then((r) => r.json()).then((d) => setTopics(Array.isArray(d) ? d : []))
       .catch(() => setTopics([]));
     setFormTopicId("");
-    setSelectedQuestionIds([]);
-  }, [formSubject]);
+    if (!editingId) setSelectedQuestionIds([]);
+  }, [formSubject, editingId]);
 
-  // Load questions when subject or topic changes
   useEffect(() => {
     if (!formSubject) { setQuestions([]); return; }
     setQuestionsLoading(true);
@@ -91,31 +90,57 @@ export default function AdminChallengesPage() {
     setSelectedQuestionIds((prev) => prev.includes(id) ? prev.filter((q) => q !== id) : [...prev, id]);
   };
 
-  const handleCreate = async () => {
+  const resetForm = () => {
+    setEditingId(null);
+    setFormSubject(""); setFormTopicId(""); setFormTitle(""); setFormDescription("");
+    setFormDifficulty("MEDIUM"); setFormTimeLimit(300); setFormXpReward(50); setFormBonusXP(25);
+    setSelectedQuestionIds([]); setQuestionSearch("");
+    const d = new Date(); d.setDate(d.getDate() + 1); setFormDate(d.toISOString().split("T")[0]);
+  };
+
+  const handleEdit = (c: Challenge) => {
+    setEditingId(c.id);
+    setFormDate(new Date(c.date).toISOString().split("T")[0]);
+    setFormSubject(c.subject);
+    setFormTitle(c.title);
+    setFormDescription(c.description);
+    setFormDifficulty(c.difficulty);
+    setFormTimeLimit(c.timeLimit);
+    setFormXpReward(c.xpReward);
+    setFormBonusXP(c.bonusXP);
+    setSelectedQuestionIds(c.questionIds);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this challenge? All student attempts for this challenge will also be deleted. This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/admin/challenges/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Failed to delete"); return; }
+      fetchChallenges();
+    } catch { alert("Network error"); }
+  };
+
+  const handleSave = async () => {
     if (!formDate || !formSubject || !formTitle || selectedQuestionIds.length === 0) {
       alert("Fill in date, subject, title, and select at least one question.");
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/challenges", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: formDate,
-          subject: formSubject,
-          topicId: formTopicId || null,
-          title: formTitle,
-          description: formDescription,
-          questionIds: selectedQuestionIds,
-          difficulty: formDifficulty,
-          timeLimit: formTimeLimit,
-          xpReward: formXpReward,
-          bonusXP: formBonusXP,
-        }),
-      });
+      const payload = {
+        date: formDate, subject: formSubject, topicId: formTopicId || null,
+        title: formTitle, description: formDescription, questionIds: selectedQuestionIds,
+        difficulty: formDifficulty, timeLimit: formTimeLimit, xpReward: formXpReward, bonusXP: formBonusXP,
+      };
+
+      const url = editingId ? `/api/admin/challenges/${editingId}` : "/api/admin/challenges";
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || "Failed to create"); return; }
+      if (!res.ok) { alert(data.error || "Failed to save"); return; }
       setShowForm(false);
       resetForm();
       fetchChallenges();
@@ -123,26 +148,12 @@ export default function AdminChallengesPage() {
     finally { setSaving(false); }
   };
 
-  const resetForm = () => {
-    setFormSubject(""); setFormTopicId(""); setFormTitle(""); setFormDescription("");
-    setFormDifficulty("MEDIUM"); setFormTimeLimit(300); setFormXpReward(50); setFormBonusXP(25);
-    setSelectedQuestionIds([]); setQuestionSearch("");
-    const d = new Date(); d.setDate(d.getDate() + 1); setFormDate(d.toISOString().split("T")[0]);
-  };
-
   const filteredQuestions = questions.filter((q) =>
     !questionSearch || q.body.toLowerCase().includes(questionSearch.toLowerCase()) || q.topic.name.toLowerCase().includes(questionSearch.toLowerCase())
   );
 
-  const getDiffStyle = (d: string) => {
-    if (d === "EASY") return { color: "var(--color-accent-green)", bg: "rgba(34,197,94,0.1)" };
-    if (d === "HARD") return { color: "var(--color-danger-400)", bg: "rgba(239,68,68,0.1)" };
-    return { color: "var(--color-warning-400)", bg: "rgba(245,158,11,0.1)" };
-  };
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", color: "var(--color-text-primary)" }}>Daily Challenges</h1>
@@ -153,7 +164,6 @@ export default function AdminChallengesPage() {
         </button>
       </div>
 
-      {/* Existing challenges */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-accent-green)" }} />
@@ -175,7 +185,7 @@ export default function AdminChallengesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>{c.title}</p>
-                      {isToday && <span className="text-[0.5625rem] font-semibold rounded-md px-1.5 py-0.5" style={{ background: "rgba(34,197,94,0.1)", color: "var(--color-accent-green)" }}>Today</span>}
+                      {isToday && <span className="badge badge-green" style={{ fontSize: "0.5625rem" }}>Today</span>}
                     </div>
                     {c.description && <p className="text-xs mb-2" style={{ color: "var(--color-text-tertiary)" }}>{c.description}</p>}
                     <div className="flex flex-wrap items-center gap-2">
@@ -191,9 +201,17 @@ export default function AdminChallengesPage() {
                       <span className="text-[0.625rem]" style={{ color: "var(--color-warning-400)" }}>{c.xpReward} XP</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-primary)" }}>{c.attempts}</p>
-                    <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>attempts</p>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className="text-right mr-2">
+                      <p className="text-sm font-bold" style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-primary)" }}>{c.attempts}</p>
+                      <p className="text-[0.5625rem]" style={{ color: "var(--color-text-muted)" }}>attempts</p>
+                    </div>
+                    <button onClick={() => handleEdit(c)} className="btn-ghost" style={{ padding: "0.375rem" }} title="Edit">
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(c.id)} className="btn-ghost" style={{ padding: "0.375rem", color: "var(--color-danger-400)" }} title="Delete">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -202,57 +220,52 @@ export default function AdminChallengesPage() {
         </div>
       )}
 
-      {/* Create challenge modal */}
+      {/* Create/Edit modal */}
       {showForm && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setShowForm(false)} />
+          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => { setShowForm(false); resetForm(); }} />
           <div className="fixed inset-x-4 top-8 bottom-8 z-50 mx-auto max-w-2xl overflow-y-auto rounded-2xl"
             style={{ background: "var(--color-surface-card)", border: "1px solid var(--color-surface-border)" }}>
             <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4"
               style={{ background: "var(--color-surface-card)", borderBottom: "1px solid var(--color-surface-border)" }}>
-              <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Create Daily Challenge</h2>
-              <button onClick={() => setShowForm(false)} className="btn-ghost" style={{ padding: "0.375rem" }}><X className="h-4 w-4" /></button>
+              <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                {editingId ? "Edit Challenge" : "Create Daily Challenge"}
+              </h2>
+              <button onClick={() => { setShowForm(false); resetForm(); }} className="btn-ghost" style={{ padding: "0.375rem" }}><X className="h-4 w-4" /></button>
             </div>
 
             <div className="p-5 space-y-5">
-              {/* Date */}
               <div>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Date</label>
+                <label className="label">Date</label>
                 <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="input-field" />
               </div>
-
-              {/* Title + Description */}
               <div>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Title</label>
+                <label className="label">Title</label>
                 <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g. Physics Speed Round" className="input-field" />
               </div>
               <div>
-                <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Description (optional)</label>
+                <label className="label">Description (optional)</label>
                 <input value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Short description for students" className="input-field" />
               </div>
-
-              {/* Subject + Topic */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Subject</label>
+                  <label className="label">Subject</label>
                   <select value={formSubject} onChange={(e) => setFormSubject(e.target.value)} className="input-field" style={{ appearance: "none" }}>
                     <option value="">Select subject</option>
                     {JAMB_SUBJECTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Topic (optional)</label>
+                  <label className="label">Topic (optional)</label>
                   <select value={formTopicId} onChange={(e) => setFormTopicId(e.target.value)} className="input-field" style={{ appearance: "none" }} disabled={!formSubject}>
                     <option value="">All topics</option>
                     {topics.map((t) => <option key={t.id} value={t.id}>{t.name} ({t._count.questions})</option>)}
                   </select>
                 </div>
               </div>
-
-              {/* Difficulty + Time + XP */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Difficulty</label>
+                  <label className="label">Difficulty</label>
                   <select value={formDifficulty} onChange={(e) => setFormDifficulty(e.target.value)} className="input-field" style={{ appearance: "none" }}>
                     <option value="EASY">Easy</option>
                     <option value="MEDIUM">Medium</option>
@@ -260,30 +273,26 @@ export default function AdminChallengesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Time (sec)</label>
+                  <label className="label">Time (sec)</label>
                   <input type="number" value={formTimeLimit} onChange={(e) => setFormTimeLimit(parseInt(e.target.value) || 300)} className="input-field" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>XP Reward</label>
+                  <label className="label">XP Reward</label>
                   <input type="number" value={formXpReward} onChange={(e) => setFormXpReward(parseInt(e.target.value) || 50)} className="input-field" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--color-text-secondary)" }}>Bonus XP</label>
+                  <label className="label">Bonus XP</label>
                   <input type="number" value={formBonusXP} onChange={(e) => setFormBonusXP(parseInt(e.target.value) || 25)} className="input-field" />
                 </div>
               </div>
 
-              {/* Question selection */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                    Select Questions ({selectedQuestionIds.length} selected)
-                  </label>
+                  <label className="label" style={{ marginBottom: 0 }}>Select Questions ({selectedQuestionIds.length} selected)</label>
                   {selectedQuestionIds.length > 0 && (
-                    <button onClick={() => setSelectedQuestionIds([])} className="text-[0.625rem]" style={{ color: "var(--color-text-muted)" }}>Clear</button>
+                    <button onClick={() => setSelectedQuestionIds([])} className="btn-ghost text-[0.625rem]">Clear</button>
                   )}
                 </div>
-
                 {!formSubject ? (
                   <p className="text-xs py-4 text-center" style={{ color: "var(--color-text-muted)" }}>Select a subject first to see questions.</p>
                 ) : questionsLoading ? (
@@ -309,7 +318,7 @@ export default function AdminChallengesPage() {
                             style={{ background: isSelected ? "rgba(34,197,94,0.06)" : "var(--color-surface-card)", border: `1px solid ${isSelected ? "rgba(34,197,94,0.2)" : "var(--color-surface-border)"}` }}>
                             <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded mt-0.5"
                               style={{ background: isSelected ? "var(--color-accent-green)" : "var(--color-surface-lighter)", border: isSelected ? "none" : "1px solid var(--color-surface-border)" }}>
-                              {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                              {isSelected && <Check className="h-2.5 w-2.5" style={{ color: "var(--color-surface)" }} />}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs leading-relaxed line-clamp-2" style={{ color: "var(--color-text-primary)" }}>{q.body}</p>
@@ -327,17 +336,16 @@ export default function AdminChallengesPage() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="sticky bottom-0 flex items-center justify-between px-5 py-4"
               style={{ background: "var(--color-surface-card)", borderTop: "1px solid var(--color-surface-border)" }}>
               <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                 {selectedQuestionIds.length} question{selectedQuestionIds.length !== 1 ? "s" : ""} selected
               </p>
               <div className="flex gap-2">
-                <button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-                <button onClick={handleCreate} disabled={saving || !formTitle || !formSubject || selectedQuestionIds.length === 0} className="btn-primary"
+                <button onClick={() => { setShowForm(false); resetForm(); }} className="btn-secondary">Cancel</button>
+                <button onClick={handleSave} disabled={saving || !formTitle || !formSubject || selectedQuestionIds.length === 0} className="btn-primary"
                   style={{ opacity: (!formTitle || !formSubject || selectedQuestionIds.length === 0) ? 0.4 : 1 }}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Zap className="h-4 w-4" /> Create</>}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Zap className="h-4 w-4" /> {editingId ? "Save Changes" : "Create"}</>}
                 </button>
               </div>
             </div>
