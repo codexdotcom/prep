@@ -16,6 +16,7 @@ interface Student {
   email: string | null;
   image: string | null;
   gender: string | null;
+    whatsappNumber: string | null;
   dateOfBirth: string | null;
   state: string | null;
   city: string | null;
