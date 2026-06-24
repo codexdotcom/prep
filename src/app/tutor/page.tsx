@@ -13,13 +13,13 @@ import { TutorChat } from "@/components/ai/tutor-chat";
 const FEATURES = [
   { icon: Mic, title: "Record Lecture", desc: "Capture and generate enhanced notes from your lectures.", color: "#ef4444", href: null },
   { icon: PenTool, title: "Smart Notes", desc: "Automatically generate comprehensive notes from any topic.", color: "#f59e0b", href: "/notes" },
-  { icon: Headphones, title: "Audio Recap", desc: "Generate podcast-style audio summaries of your study materials.", color: "#ec4899", href: null },
+  { icon: Headphones, title: "Audio Recap", desc: "Generate podcast-style audio summaries of your study materials.", color: "#ec4899", href: "/audio-recap" },
   { icon: Video, title: "Explainer Video", desc: "Turn any topic into an AI-generated educational breakdown.", color: "#14b8a6", href: null },
   { icon: Image, title: "Visual Explainer", desc: "Analyze diagrams, charts, and images with AI-powered explanations.", color: "#6366f1", href: null },
-  { icon: Puzzle, title: "Flashcards", desc: "Create smart flashcard decks from your study materials.", color: "#0ea5e9", href: null },
+  { icon: Puzzle, title: "Flashcards", desc: "Create smart flashcard decks from your study materials.", color: "#0ea5e9", href: "/flashcards" },
   { icon: Sparkles, title: "QuizFetch", desc: "Auto-generated quizzes from your uploaded content.", color: "#a855f7", href: "/quizfetch" },
   { icon: Gamepad2, title: "Arcade", desc: "Learn through interactive study games and challenges.", color: "#f97316", href: null },
-  { icon: FileText, title: "Essay Grader", desc: "Receive personalized feedback and grading on your essays.", color: "#e11d48", href: null },
+  { icon: FileText, title: "Essay Grader", desc: "Receive personalized feedback and grading on your essays.", color: "#e11d48", href:"/essay-grader" },
 ];
 
 const QUICK_PROMPTS = [
