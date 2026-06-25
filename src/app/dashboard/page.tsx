@@ -302,7 +302,7 @@ export default function DashboardPage() {
     { label: "Discover", items: [
       { icon: GraduationCap, title: "Post-UTME", href: "/post-utme", desc: "University-specific prep" },
       { icon: Heart, title: "Uni Match", href: "/match", desc: "Find your best fit" },
-      { icon: ClipboardList, title: "Track Admission", href: "/admission", desc: "Monitor your status" },
+      { icon: ClipboardList, title: "Track Admission Success Rate", href: "/admission", desc: "Monitor your status" },
       { icon: Compass, title: "Career Discovery", href: "/career", desc: "Find your path" },
       { icon: GraduationCap, title: "Reality Mode", href: "/reality", desc: "Admission probability" },
       { icon: Award, title: "Scholarships", href: "/scholarships", desc: "Find funding" },
@@ -736,7 +736,7 @@ export default function DashboardPage() {
               { label: "AFTER JAMB", items: [
                 { icon: GraduationCap, title: "Post-UTME Prep", href: "/post-utme", color: "#ec4899" },
                 { icon: Heart, title: "Uni Match", href: "/match", color: "#f43f5e" },
-                { icon: ClipboardList, title: "Track Admission", href: "/admission", color: "#3b82f6" },
+                { icon: ClipboardList, title: "Track Admission Success Rate", href: "/admission", color: "#3b82f6" },
               
               ]},
             ].map(({ label, items }) => (

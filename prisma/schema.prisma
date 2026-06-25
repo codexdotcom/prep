@@ -23,6 +23,7 @@ model User {
   sessions        Session[]
   profile         StudentProfile?
   diagnosticResults DiagnosticResult[]
+   savedVideos      SavedVideo[]
   testSessions    TestSession[]
   studyPlans      StudyPlan[]
   studyStreak     StudyStreak?
@@ -1580,4 +1581,16 @@ model StudentTopicAbility {
   @@unique([userId, topicId])
   @@index([userId, subject])
   @@index([userId, nextReviewAt])
+}
+model SavedVideo {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  subject     String?
+  data        Json     // stores slides, totalDuration, etc.
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
