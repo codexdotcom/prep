@@ -7,19 +7,24 @@ import {
   FileText, Calendar, Mic, Video, Image, Headphones,
   Gamepad2, ClipboardList, PenTool, Puzzle, AppWindow,
   GraduationCap, Sparkles, Send,
+  Bookmark,
+  Phone,
 } from "lucide-react";
 import { TutorChat } from "@/components/ai/tutor-chat";
 
 const FEATURES = [
-  { icon: Mic, title: "Record Lecture", desc: "Capture and generate enhanced notes from your lectures.", color: "#ef4444", href: null },
+  { icon: Mic, title: "Record Lecture", desc: "Capture and generate enhanced notes from your lectures.", color: "#ef4444", href: "/record-lecture"},
   { icon: PenTool, title: "Smart Notes", desc: "Automatically generate comprehensive notes from any topic.", color: "#f59e0b", href: "/notes" },
   { icon: Headphones, title: "Audio Recap", desc: "Generate podcast-style audio summaries of your study materials.", color: "#ec4899", href: "/audio-recap" },
   { icon: Video, title: "Explainer Video", desc: "Turn any topic into an AI-generated educational breakdown.", color: "#14b8a6", href: "/explainer" },
   { icon: Image, title: "Visual Explainer", desc: "Analyze diagrams, charts, and images with AI-powered explanations.", color: "#6366f1", href: "visual-explainer" },
   { icon: Puzzle, title: "Flashcards", desc: "Create smart flashcard decks from your study materials.", color: "#0ea5e9", href: "/flashcards" },
   { icon: Sparkles, title: "QuizFetch", desc: "Auto-generated quizzes from your uploaded content.", color: "#a855f7", href: "/quizfetch" },
-  { icon: Gamepad2, title: "Arcade", desc: "Learn through interactive study games and challenges.", color: "#f97316", href: null },
+  { icon: Gamepad2, title: "Arcade", desc: "Learn through interactive study games and challenges.", color: "#f97316", href: "/arcade" },
   { icon: FileText, title: "Essay Grader", desc: "Receive personalized feedback and grading on your essays.", color: "#e11d48", href:"/essay-grader" },
+  { icon: MessageCircle, title: "Conversations", desc: "Continue past conversations with your AI tutor.", color: "#8b5cf6", href: "/chat" },
+{ icon: Phone, title: "Live Voice Call", desc: "Call and talk through anything you are stuck on in real-time.", color: "#14b8a6", href: "/call" },
+{ icon: Bookmark, title: "Bookmarks", desc: "Access your saved videos, flashcards, and study notes.", color: "#111", href: "/bookmarks" },
 ];
 
 const QUICK_PROMPTS = [

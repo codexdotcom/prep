@@ -6,6 +6,7 @@ import {
   ArrowLeft, Puzzle, Upload, FileText, Loader2, Trash2,
   ChevronLeft, ChevronRight, RotateCcw, Sparkles, Eye, EyeOff,
   Check, X, Shuffle,
+  Bookmark,
 } from "lucide-react";
 
 interface Flashcard {
@@ -111,7 +112,19 @@ export default function FlashcardsPage() {
     setCurrentIndex(0);
     setFlipped(false);
   };
+const [deckSaved, setDeckSaved] = useState(false);
 
+const saveDeck = async () => {
+  if (!deck || deckSaved) return;
+  try {
+    const res = await fetch("/api/bookmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "flashcard", title: deck.title, data: { cards: deck.cards } }),
+    });
+    if (res.ok) setDeckSaved(true);
+  } catch {}
+};
   const resetProgress = () => {
     setKnown(new Set());
     setCurrentIndex(0);
@@ -240,6 +253,13 @@ export default function FlashcardsPage() {
                   title="Reset progress">
                   <RotateCcw className="h-4 w-4" />
                 </button>
+                <button onClick={saveDeck} className="p-2 rounded-lg transition-colors"
+  style={{ color: deckSaved ? "#22c55e" : "#999" }}
+  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f0f0f0"; }}
+  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+  title={deckSaved ? "Saved" : "Save deck"}>
+  {deckSaved ? <Check className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+</button>
               </div>
             </div>
 

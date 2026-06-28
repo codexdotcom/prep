@@ -417,15 +417,16 @@ export default function ExplainerVideoPage() {
   };
 
   const handleSave = async () => {
-    if (!video || saved) return;
-    try {
-      const res = await fetch("/api/explainer-video/save", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(video),
-      });
-      if (res.ok) setSaved(true);
-    } catch {}
-  };
+  if (!video || saved) return;
+  try {
+    const res = await fetch("/api/bookmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "video", title: video.title, data: { slides: video.slides, totalDuration: video.totalDuration, subject: video.subject } }),
+    });
+    if (res.ok) setSaved(true);
+  } catch {}
+};
 
   const resetAll = () => {
     window.speechSynthesis.cancel();
