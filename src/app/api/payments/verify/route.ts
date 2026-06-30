@@ -1,81 +1,87 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { verifyTransaction } from "@/lib/paystack";
+import { verifyPayment } from "@/lib/paystack";
+import { SubscriptionTier } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(req.url);
     const reference = searchParams.get("reference");
+    if (!reference) return NextResponse.redirect(new URL("/pricing", req.url));
 
-    if (!reference) {
-      return NextResponse.json({ error: "Reference required" }, { status: 400 });
-    }
+    const payment = await db.payment.findUnique({ where: { paystackRef: reference } });
+    if (!payment) return NextResponse.redirect(new URL("/pricing?error=not_found", req.url));
 
-    // Find the payment
-    const payment = await db.payment.findUnique({
-      where: { providerRef: reference },
-    });
+    const verified = await verifyPayment(reference);
 
-    if (!payment || payment.userId !== session.user.id) {
-      return NextResponse.json({ error: "Payment not found" }, { status: 404 });
-    }
-
-    if (payment.status === "SUCCESS") {
-      return NextResponse.json({ status: "success", message: "Already verified" });
-    }
-
-    // Verify with Paystack
-    const result = await verifyTransaction(reference);
-
-    if (!result.status || result.data.status !== "success") {
+    if (verified.status === "success") {
       await db.payment.update({
-        where: { id: payment.id },
+        where: { paystackRef: reference },
+        data: { status: "SUCCESS", paystackData: verified as any },
+      });
+
+      if (payment.type === "subscription") {
+        const tier = (payment.paystackData as any)?.tier as SubscriptionTier;
+        const endDate = new Date();
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        await db.subscription.upsert({
+          where: { userId: payment.userId },
+          update: {
+            tier,
+            status: "active",
+            paystackRef: reference,
+            paystackEmail: verified.customer.email,
+            amount: payment.amount,
+            startDate: new Date(),
+            endDate,
+          },
+          create: {
+            userId: payment.userId,
+            tier,
+            status: "active",
+            paystackRef: reference,
+            paystackEmail: verified.customer.email,
+            amount: payment.amount,
+            startDate: new Date(),
+            endDate,
+          },
+        });
+
+        return NextResponse.redirect(new URL("/pricing?success=1", req.url));
+      }
+
+      if (payment.type === "microtransaction" && payment.feature) {
+        // Grant usage credits
+        const creditsMap: Record<string, number> = {
+          quizfetch: 5, flashcards: 3, essay: 1, "audio-recap": 1,
+          "visual-explainer": 3, "explainer-video": 1, "record-lecture": 1,
+          call: 1, chat: 10, arcade: 5,
+        };
+        const credits = creditsMap[payment.feature] || 1;
+
+        // Add negative usage to offset (effectively granting extra uses)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        await db.usageRecord.upsert({
+          where: { userId_feature_date: { userId: payment.userId, feature: payment.feature, date: today } },
+          update: { count: { decrement: credits } },
+          create: { userId: payment.userId, feature: payment.feature, date: today, count: -credits },
+        });
+
+        return NextResponse.redirect(new URL(`/${payment.feature}?unlocked=1`, req.url));
+      }
+    } else {
+      await db.payment.update({
+        where: { paystackRef: reference },
         data: { status: "FAILED" },
       });
-      return NextResponse.json({ status: "failed", message: "Payment verification failed" });
     }
 
-    // Update payment
-    await db.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "SUCCESS",
-        providerTxId: String(result.data.id),
-      },
-    });
-
-    // Activate subscription
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-    await db.subscription.upsert({
-      where: { userId: session.user.id },
-      update: {
-        plan: payment.plan || "STARTER",
-        status: "ACTIVE",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: periodEnd,
-        paystackCustomerId: result.data.customer?.customer_code,
-      },
-      create: {
-        userId: session.user.id,
-        plan: payment.plan || "STARTER",
-        status: "ACTIVE",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: periodEnd,
-        paystackCustomerId: result.data.customer?.customer_code,
-      },
-    });
-
-    return NextResponse.json({ status: "success", plan: payment.plan });
-  } catch (error) {
-    console.error("Payment verify error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.redirect(new URL("/pricing?error=failed", req.url));
+  } catch (error: any) {
+    console.error("Verify error:", error?.message);
+    return NextResponse.redirect(new URL("/pricing?error=server", req.url));
   }
 }

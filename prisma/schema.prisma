@@ -45,6 +45,9 @@ model User {
     parentLinks      ParentLink[]
      noteViews       NoteView[]
   noteUploads     NoteUpload[]
+  
+  usageRecords       UsageRecord[]
+  
   schoolEnrollment SchoolEnrollment?
   careerProfile    CareerProfile?
     universityMatches   UniversityMatch[]
@@ -589,49 +592,6 @@ enum LeaderboardPeriod {
   WEEKLY
   MONTHLY
   ALL_TIME
-}
-
-model Subscription {
-  id              String           @id @default(cuid())
-  userId          String           @unique
-  plan            SubscriptionPlan @default(FREE)
-  status          SubscriptionStatus @default(ACTIVE)
-  paystackCustomerId String?
-  paystackSubscriptionCode String?
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  cancelledAt     DateTime?
-
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments        Payment[]
-
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  @@index([userId])
-  @@index([status])
-}
-
-model Payment {
-  id              String        @id @default(cuid())
-  userId          String
-  subscriptionId  String?
-  amount          Int                        // in kobo (₦1 = 100 kobo)
-  currency        String        @default("NGN")
-  status          PaymentStatus @default(PENDING)
-  provider        String        @default("paystack")
-  providerRef     String?       @unique      // paystack reference
-  providerTxId    String?                    // paystack transaction ID
-  plan            SubscriptionPlan?
-  metadata        Json?
-
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
-
-  createdAt       DateTime      @default(now())
-
-  @@index([userId])
-  @@index([providerRef])
 }
 
 model FlaggedQuestion {
@@ -1633,4 +1593,61 @@ model ChatMessage {
   conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+}
+enum SubscriptionTier {
+  FREE
+  BASIC
+  STANDARD
+  PREMIUM
+  ELITE
+}
+
+
+model Subscription {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  tier            SubscriptionTier @default(FREE)
+  status          String           @default("active") // active, cancelled, expired
+  paystackRef     String?
+  paystackSubCode String?
+  paystackEmail   String?
+  amount          Int              @default(0)
+  currency        String           @default("NGN")
+  startDate       DateTime         @default(now())
+  endDate         DateTime?
+  autoRenew       Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  feature   String   // quizfetch, flashcards, essay, audio, video, explainer, call, chat, arcade
+  date      DateTime @default(now()) @db.Date
+  count     Int      @default(1)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature, date])
+  @@index([userId, feature])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  userId        String
+  type          String        @default("subscription")
+  feature       String?
+  amount        Int
+  currency      String        @default("NGN")
+  status        PaymentStatus @default(PENDING)
+  paystackRef   String?       @unique
+  paystackData  Json?
+  createdAt     DateTime      @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

@@ -14,6 +14,7 @@ import { Footer } from "@/components/ui/footer";
 import { AdaptiveInsights } from "@/components/dashboard/adaptive-insights";
 import { ScoreHistory } from "@/components/dashboard/score-history";
 import { OnboardingWalkthrough } from "@/components/dashboard/onboarding-walkthrough";
+import { UpsellBanner } from "@/components/ui/upsell-banner";
 
 interface QuickStats {
   predictedScore: number;
@@ -218,6 +219,8 @@ export default function DashboardPage() {
   const [simResult, setSimResult] = useState<SimResult | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [showSim, setShowSim] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState("FREE");
+  const [riskLevel, setRiskLevel] = useState<string | null>(null);
 
   const [trajData, setTrajData] = useState<TrajectoryData | null>(null);
   const [trajLoading, setTrajLoading] = useState(false);
@@ -235,13 +238,20 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d) => { if (active) setXp(d); })
       .catch(() => {});
-    fetch("/api/challenge/today")
+fetch("/api/challenge/today")
       .then((r) => r.json())
       .then((d) => { if (active && d?.challenge) setHasChallenge(true); })
       .catch(() => {});
+    fetch("/api/payments/status")
+      .then((r) => r.json())
+      .then((d) => { if (active) setSubscriptionTier(d.tier || "FREE"); })
+      .catch(() => {});
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((d) => { if (active) setRiskLevel(d.riskLevel || null); })
+      .catch(() => {});
     return () => { active = false; };
   }, []);
-
   useEffect(() => {
     if (analytics?.hasData && analytics.overview?.targetScore) setTrajTarget(analytics.overview.targetScore);
   }, [analytics]);
@@ -422,13 +432,18 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+      
 
       {/* ═══ Main Content ═══ */}
       <main className="mx-auto max-w-5xl w-full px-4 sm:px-6 pt-6 pb-24 sm:pb-12 flex-1">
         <p className="text-sm mb-6" style={{ color: "#888" }}>
           {greeting}, <span style={{ color: "#111", fontWeight: 600 }}>{firstName}</span>
         </p>
-
+ {subscriptionTier === "FREE" && riskLevel && (
+          <div className="mb-6">
+            <UpsellBanner riskLevel={riskLevel} tier={subscriptionTier} />
+          </div>
+        )}
         {analyticsLoading ? (
           <HeroSkeleton />
         ) : hasData ? (
